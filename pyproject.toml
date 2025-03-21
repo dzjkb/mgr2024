@@ -1,0 +1,53 @@
+[tool.black]
+line-length = 100
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+exclude = []
+
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+implicit_reexport = false
+strict_optional = true
+strict_equality = true
+warn_redundant_casts = true
+warn_unreachable = true
+warn_unused_ignores = true
+
+disable_error_code = ["import-untyped"]
+
+[build-system]
+requires = ["poetry-core>=1.2.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "mgr"
+version = "0.0.0"
+description = ""
+authors = ["Jakub Pieszczek"]
+readme = "README.md"
+
+[[tool.poetry.source]]
+name = "PyPI"
+priority = "primary"
+
+[[tool.poetry.source]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu113"
+priority = "supplemental"
+
+[tool.poetry.dependencies]
+torch = { version = "^1.12.1+cu113", source = "pytorch" }
+torchvision = { version = "^0.13.1+cu113", source = "pytorch" }
+python = "~3.10"
+black = "^25.1.0"
+isort = "^6.0.1"
+mypy = "^1.15.0"
+flake8 = "^7.1.2"
+jupyterlab = "^4.3.6"
