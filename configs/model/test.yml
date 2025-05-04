@@ -1,0 +1,8 @@
+capacity: 16
+latent_size: 128
+dilations:
+  - [1, 3, 9]
+  - [1, 3, 9]
+  - [1, 3, 9]
+  - [1, 3, 9]
+strides: [2, 4, 5, 8]

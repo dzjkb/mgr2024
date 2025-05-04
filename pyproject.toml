@@ -32,6 +32,7 @@ version = "0.0.0"
 description = ""
 authors = ["Jakub Pieszczek"]
 readme = "README.md"
+package-mode = false
 
 [[tool.poetry.source]]
 name = "PyPI"
@@ -45,9 +46,15 @@ priority = "supplemental"
 [tool.poetry.dependencies]
 torch = { version = "^1.12.1+cu113", source = "pytorch" }
 torchvision = { version = "^0.13.1+cu113", source = "pytorch" }
+torchaudio = { version = "0.12.1+cu113", source = "pytorch" }
 python = "~3.10"
+numpy = "<2"
 black = "^25.1.0"
 isort = "^6.0.1"
 mypy = "^1.15.0"
 flake8 = "^7.1.2"
 jupyterlab = "^4.3.6"
+cached-conv = "^2.5.0"
+lightning = "^2.1"
+click = "^8.1.8"
+cattrs = "^24.1.3"

@@ -1,0 +1,7 @@
+train:
+  train_dataset_path: data/test/test_train
+  val_dataset_path: data/test/test_val
+  log_dir: logs/test
+  experiment_name: test
+  batch_size: 32
+  model_config: configs/model/test.yml
