@@ -1,0 +1,3 @@
+  initial_latent_weight: 0.000001
+  target_latent_weight: 0.01
+  latent_weight_warmup_length: 10000

@@ -1,7 +1,10 @@
 train:
-  train_dataset_path: data/test/test_train
-  val_dataset_path: data/test/test_val
+  train_dataset_path: data/snares1_train
+  val_dataset_path: data/snares1_val
   log_dir: logs/test
   experiment_name: test
+  epochs: 10
+  device: cpu
   batch_size: 32
   model_config: configs/model/test.yml
+  callbacks_config: configs/callbacks/test.yml

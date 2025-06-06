@@ -1,5 +1,6 @@
 import yaml
 from datetime import datetime
+from pathlib import Path
 
 import pytorch_lightning as pl
 from attrs import frozen, asdict
@@ -8,6 +9,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from .model import VAE, ModelConfig
 from .dataset import AudioDataset
+from .callbacks import init_callbacks, CallbacksConfig
 
 
 @frozen
@@ -16,11 +18,16 @@ class TrainingConfig:
     val_dataset_path: str
     log_dir: str
     experiment_name: str
+    epochs: int
     batch_size: int
+    device: str
+    checkpoint_path: str | None
     model_config: ModelConfig
+    callbacks_config: CallbacksConfig
 
 
 def _log_config(cfg: TrainingConfig, path: str) -> None:
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         f.write(yaml.dump(asdict(cfg)))
 
@@ -35,17 +42,23 @@ def do_train(cfg: TrainingConfig) -> None:
 
     model = VAE(**asdict(cfg.model_config))
     train_set = DataLoader(
-        AudioDataset(cfg.train_dataset_path),
+        AudioDataset(Path(cfg.train_dataset_path), transforms=[]),
         batch_size=cfg.batch_size,
         shuffle=True,
     )
     val_set = DataLoader(
-        AudioDataset(cfg.val_dataset_path),
+        AudioDataset(Path(cfg.val_dataset_path), transforms=[]),
         batch_size=cfg.batch_size,
     )
+
     trainer = pl.Trainer(
         logger=TensorBoardLogger(save_dir=cfg.log_dir, name=_run_name(cfg.experiment_name)),
-        max_epochs=10,
+        max_epochs=cfg.epochs,
+        accelerator=cfg.device,
+        devices=1,
+        callbacks=init_callbacks(cfg.callbacks_config),
+        profiler="simple",
+        enable_progress_bar=True,
     )
-    trainer.fit(model, train_set, val_set)
-    # trainer.fit(model, train_set, val_set, ckpt_path=run)
+    checkpoint_kwarg: dict[str, str] = {"ckpt_path": cfg.checkpoint_path} if cfg.checkpoint_path is not None else {}
+    trainer.fit(model, train_set, val_set, **checkpoint_kwarg)  # type: ignore

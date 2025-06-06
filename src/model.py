@@ -4,7 +4,12 @@ from attrs import frozen, asdict
 
 import pytorch_lightning as pl
 import torch
+from einops import rearrange
 from torch import optim, nn, Tensor
+
+from .loss import MultiScaleSTFTLoss
+
+SAMPLING_RATE = 48000
 
 
 def _get_padding(kernel_size: int, dilation: int) -> int:
@@ -52,6 +57,7 @@ class _ResidualDilatedUnit(nn.Module):
         channels: int,
         dilation: int,
     ):
+        super().__init__()
         self.net = nn.Sequential(
             nn.LeakyReLU(),
             nn.Conv1d(
@@ -84,9 +90,10 @@ class _EncoderBlock(nn.Module):
         dilations: list[int],
         stride: int,
     ):
+        super().__init__()
         self.net = nn.Sequential(
             *[
-                _ResidualDilatedUnit(in_channels, in_channels, dilation=d)
+                _ResidualDilatedUnit(in_channels, dilation=d)
                 for d in dilations
             ],
             nn.LeakyReLU(),
@@ -94,7 +101,7 @@ class _EncoderBlock(nn.Module):
                 in_channels,
                 2*in_channels,
                 kernel_size=2*stride,
-                padding=_get_strided_padding(stride),
+                padding=_get_strided_padding(stride),  # type: ignore
                 stride=stride,
             ),
         )
@@ -114,6 +121,7 @@ class Encoder(nn.Module):
         strides: list[int],
         latent_size: int,
     ):
+        super().__init__()
         assert len(dilations) == len(strides)
         self.latent_size = latent_size
 
@@ -127,7 +135,7 @@ class Encoder(nn.Module):
                 2,  # left/right audio channel
                 start_channels,
                 kernel_size=self.input_kernel_size,
-                padding=_get_padding(self.input_kernel_size),
+                padding=_get_padding(self.input_kernel_size, 1),
             ),
             *encoder_blocks,
             nn.LeakyReLU(),
@@ -135,7 +143,7 @@ class Encoder(nn.Module):
                 start_channels * 2**len(strides),
                 latent_size * 2,  # outputs mean and log-variance for each dim
                 kernel_size=self.output_kernel_size,
-                padding=_get_padding(self.output_kernel_size),
+                padding=_get_padding(self.output_kernel_size, 1),
             ),
         )
 
@@ -161,6 +169,7 @@ class _DecoderBlock(nn.Module):
         dilations: list[int],
         stride: int,
     ):
+        super().__init__()
         # again, for simplicity - this will always be the case
         assert in_channels % 2 == 0
 
@@ -170,14 +179,14 @@ class _DecoderBlock(nn.Module):
                 in_channels,
                 in_channels // 2,
                 kernel_size=2*stride,
-                padding=_get_strided_padding(stride),
+                padding=_get_strided_padding(stride),  # type: ignore
                 stride=stride,
                 output_padding=2,
                 # TODO: alternatively don't set `output_padding` but set `padding` to just stride/2?
                 # the output shape should stay the same
             ),
             *[
-                _ResidualDilatedUnit(in_channels // 2, in_channels // 2, dilation=d)
+                _ResidualDilatedUnit(in_channels // 2, dilation=d)
                 for d in dilations
             ],
         )
@@ -197,6 +206,7 @@ class Decoder(nn.Module):
         strides: list[int],
         latent_size: int,
     ):
+        super().__init__()
         assert len(dilations) == len(strides)
         self.latent_size = latent_size
 
@@ -210,7 +220,7 @@ class Decoder(nn.Module):
                 latent_size,
                 start_channels,
                 kernel_size=self.input_kernel_size,
-                padding=_get_padding(self.input_kernel_size),
+                padding=_get_padding(self.input_kernel_size, 1),
             ),
             *decoder_blocks,
             nn.LeakyReLU(),
@@ -218,7 +228,7 @@ class Decoder(nn.Module):
                 start_channels / 2**len(strides),
                 2,  # left/right audio channel
                 kernel_size=self.output_kernel_size,
-                padding=_get_padding(self.output_kernel_size),
+                padding=_get_padding(self.output_kernel_size, 1),
             ),
         )
 
@@ -233,9 +243,11 @@ class VAE(pl.LightningModule):
         latent_size: int,
         dilations: list[list[int]],
         strides: list[int],
+        stft_window_sizes: list[int] | None = None,
         latent_loss_weight: float = 0.5,
         reconstruction_loss_weight: float = 1.0,
     ):
+        super().__init__()
         assert len(dilations) == len(strides)
 
         self.encoder = Encoder(
@@ -251,57 +263,72 @@ class VAE(pl.LightningModule):
             latent_size=latent_size,
         )
 
-        # std = nn.functional.softplus(scale) + 1e-4
-        # var = std * std
-        # logvar = torch.log(var)
+        _window_sizes = stft_window_sizes or [2048, 1024, 512, 256, 128]
+        self.reconstruction_loss = MultiScaleSTFTLoss(_window_sizes)
 
         self.latent_loss_weight = latent_loss_weight
         self.reconstruction_loss_weight = reconstruction_loss_weight
 
+        self.validation_outputs: list[Tensor] = []
+        self.validation_epoch = 0
+
     def _reparametrize(self, mean: Tensor, logvar: Tensor) -> Tensor:
-        std = torch.exp(.5 * logvar)
+        std = torch.exp(.5 * logvar)  # type: ignore
         eps = torch.randn_like(std)
         z = eps.mul(std).add_(mean)
-
-        # kl divergence for latent space regularization
-        # kl = (mean * mean + var - logvar - 1).sum(1).mean()
-        # return z, self.beta * kl
         return z
 
     @staticmethod
     def _latent_loss(mean: Tensor, logvar: Tensor) -> Tensor:
-        # TODO: what exponent should `torch.exp()` have here, what dimensions?
-        # TODO: if normalizing flows add `log_det`
+        # in the future - if normalizing flows add `log_det`
         return (mean.pow(2) + torch.exp(logvar) - logvar - 1).sum(1).mean()
 
-    @staticmethod
-    def _reconstruction_loss(x: Tensor, x_hat: Tensor) -> Tensor:
-        return x - x_hat  # TODO
-
-    # def encode(self, x: Tensor) -> tuple[Tensor, Tensor]:
-    #     # mean, logvar = self.subnet_mean(z), self.subnet_logvar(z)
-    #     mean, logvar = self.encoder(x)
-    #     z  = self._reparametrize(mean, logvar)
-
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
-        # encoder expects (N, 2, L)
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, dict[str, Tensor]]:
         mean, logvar = self.encoder(x)
         z = self._reparametrize(mean, logvar)
         x_hat = self.decoder(z)
 
-        loss = (
-            self.latent_loss_weight * self._latent_loss(mean, logvar) +
-            self.reconstruction_loss_weight * self._reconstruction_loss(x, x_hat)
+        losses_dict = {
+            "latent_loss": self._latent_loss(mean, logvar),
+            "reconstruction_loss": self.reconstruction_loss(x, x_hat),
+        }
+        total_loss = (
+            self.latent_loss_weight * losses_dict["latent_loss"] +
+            self.reconstruction_loss_weight * losses_dict["reconstruction_loss"]
         )
-        return x_hat, loss
+        return x_hat, total_loss, losses_dict
 
-    def training_step(self, batch, batch_idx: int) -> Tensor:
-        # batch is whatever the dataloader returns
-        x_hat, loss = self.forward(batch)
-
-        self.log("train_loss", loss)
-
+    def training_step(self, batch: Tensor, batch_idx: int) -> Tensor:
+        _, loss, losses_dict = self.forward(batch)
+        self.log("train_loss", loss, on_step=True, on_epoch=True)
+        self.log_dict(losses_dict, on_step=True, on_epoch=True)
+        self.log("latent_loss_weight", self.latent_loss_weight)
         return loss
+
+    def validation_step(self, batch: Tensor, batch_idx: int) -> None:
+        reconstructed_audio, loss, _ = self.forward(batch)
+        self.log("validation_loss", loss)
+
+        self.validation_outputs.append(reconstructed_audio)
+    
+    def on_validation_epoch_end(self) -> None:
+        # TODO: maybe we want more?
+        # validation_audio = rearrange(
+        #     self.validation_outputs,
+        #     "li b c len -> (li b) c len",
+        # )
+        # taking first batch for now
+        validation_audio = self.validation_outputs[0]
+
+        self.logger.experiment.add_audio(  # type: ignore
+            "validation_audio",
+            validation_audio,
+            self.validation_epoch,
+            SAMPLING_RATE,
+        )
+
+        self.validation_outputs = []
+        self.validation_epoch += 1
 
     def configure_optimizers(self) -> optim.Optimizer:
         optimizer = optim.Adam(self.parameters(), lr=1e-3)
