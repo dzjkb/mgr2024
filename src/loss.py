@@ -9,6 +9,7 @@ from toolz import juxt
 
 class MultiScaleSTFTLoss(nn.Module):
     def __init__(self, window_sizes: Iterable[int]):
+        super().__init__()
         # TODO: mel scale?
         self.stfts = nn.ModuleList(
             Spectrogram(

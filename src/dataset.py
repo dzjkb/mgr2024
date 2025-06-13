@@ -26,8 +26,8 @@ class AudioDataset(data.Dataset[torch.Tensor]):
         self.expected_sample_rate = expected_sample_rate
         self.files = list(dataset_dir.glob("*.wav"))
 
-        for f in tqdm(self.files, desc=f"validating the {dataset_dir.name} dataset"):
-            assert self._validate(*self._load_file(f)), f"invalid file: {f.name}"
+        for idx in tqdm(range(len(self.files)), desc=f"validating the {dataset_dir.name} dataset"):
+            assert self._validate(*self._load_file(idx)), f"invalid file: {self.files[idx]}"
 
         # TODO compose transforms
         # self.transforms = compose(transforms)

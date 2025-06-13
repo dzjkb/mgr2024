@@ -32,8 +32,18 @@ def _get_strided_padding(stride: int) -> tuple[int, int]:
     assumes kernel size to be `2*stride`
     """
 
-    half = stride / 2 + 1
+    half = stride / 2
     return floor(half), ceil(half)
+
+
+class ZeroPad1d(nn.Module):
+    def __init__(self, padding_left: int, padding_right: int) -> None:
+        super().__init__()
+        self._left = padding_left
+        self._right = padding_right
+    
+    def forward(self, x: Tensor) -> Tensor:
+        return nn.functional.pad(x, (self._left, self._right))
 
 
 @frozen
@@ -97,11 +107,12 @@ class _EncoderBlock(nn.Module):
                 for d in dilations
             ],
             nn.LeakyReLU(),
+            ZeroPad1d(*_get_strided_padding(stride)),
             nn.Conv1d(
                 in_channels,
                 2*in_channels,
                 kernel_size=2*stride,
-                padding=_get_strided_padding(stride),  # type: ignore
+                padding=0,
                 stride=stride,
             ),
         )
@@ -179,11 +190,9 @@ class _DecoderBlock(nn.Module):
                 in_channels,
                 in_channels // 2,
                 kernel_size=2*stride,
-                padding=_get_strided_padding(stride),  # type: ignore
+                padding=_get_strided_padding(stride)[1],
                 stride=stride,
-                output_padding=2,
-                # TODO: alternatively don't set `output_padding` but set `padding` to just stride/2?
-                # the output shape should stay the same
+                output_padding=stride % 2,
             ),
             *[
                 _ResidualDilatedUnit(in_channels // 2, dilation=d)
@@ -211,7 +220,7 @@ class Decoder(nn.Module):
         self.latent_size = latent_size
 
         decoder_blocks = [
-            _DecoderBlock(start_channels / 2**i, block_dilations, stride)
+            _DecoderBlock(start_channels // 2**i, block_dilations, stride)
             for i, (block_dilations, stride) in enumerate(zip(dilations,strides))
         ]
 
@@ -225,7 +234,7 @@ class Decoder(nn.Module):
             *decoder_blocks,
             nn.LeakyReLU(),
             nn.Conv1d(
-                start_channels / 2**len(strides),
+                start_channels // 2**len(strides),
                 2,  # left/right audio channel
                 kernel_size=self.output_kernel_size,
                 padding=_get_padding(self.output_kernel_size, 1),
