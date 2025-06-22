@@ -9,15 +9,14 @@ import pytorch_lightning as pl
 class CallbacksConfig:
     initial_latent_weight: float | None = None  # if `None` beta warmup is disabled
     target_latent_weight: float | None = None  # required if `initial_latent_loss` is not `None`
-    latent_weight_warmup_length: int | None = None  # required if `initial_latent_loss` is not `None`
+    latent_weight_warmup_length: int | None = (
+        None  # required if `initial_latent_loss` is not `None`
+    )
 
 
 def init_callbacks(cfg: CallbacksConfig) -> list[pl.Callback]:
     callbacks: list[pl.Callback] = [
-        pl.callbacks.ModelCheckpoint(
-            monitor="validation_loss",
-            filename="best"
-        ),
+        pl.callbacks.ModelCheckpoint(monitor="validation_loss", filename="best"),
         pl.callbacks.ModelCheckpoint(save_last=True, save_top_k=0),
     ]
 
@@ -25,12 +24,12 @@ def init_callbacks(cfg: CallbacksConfig) -> list[pl.Callback]:
         assert cfg.target_latent_weight is not None and cfg.latent_weight_warmup_length is not None
         callbacks.append(
             BetaWarmupCallback(
-                initial_value = cfg.initial_latent_weight,
+                initial_value=cfg.initial_latent_weight,
                 target_value=cfg.target_latent_weight,
                 warmup_len=cfg.latent_weight_warmup_length,
             )
         )
-    
+
     return callbacks
 
 
@@ -43,7 +42,7 @@ class BetaWarmupCallback(pl.Callback):
         warmup_len: int,  # in batches
     ) -> None:
         super().__init__()
-        self.state = {'training_steps': 0}
+        self.state = {"training_steps": 0}
         self.warmup_len = warmup_len
         self.initial_value = initial_value
         self.target_value = target_value
@@ -55,16 +54,13 @@ class BetaWarmupCallback(pl.Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
-        self.state['training_steps'] += 1
+        self.state["training_steps"] += 1
         if self.state["training_steps"] >= self.warmup_len:
             pl_module.latent_loss_weight = self.target_value  # type: ignore
             return
 
         ratio = self.state["training_steps"] / self.warmup_len
-        weight = (
-            math.log(self.initial_value) * (1 - ratio)
-            + math.log(self.target_value) * ratio
-        )
+        weight = math.log(self.initial_value) * (1 - ratio) + math.log(self.target_value) * ratio
         pl_module.latent_loss_weight = math.exp(weight)  # type: ignore
 
     def state_dict(self) -> dict[str, Any]:

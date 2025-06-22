@@ -15,7 +15,7 @@ class MultiScaleSTFTLoss(nn.Module):
             Spectrogram(
                 n_fft=w,
                 win_length=w,
-                hop_length=w//4,
+                hop_length=w // 4,
                 normalized=False,
                 power=1,
             )
@@ -27,13 +27,13 @@ class MultiScaleSTFTLoss(nn.Module):
     def _multiscale_stft(self, x: Tensor) -> Iterable[Tensor]:
         x_: Tensor = rearrange(x, "b c t -> (b c) t")
         # r.i.p. typing
-        return juxt(self.stfts)(x_)
+        return juxt(*self.stfts)(x_)
 
     def forward(self, x: Tensor, y: Tensor) -> Tensor:
         x_spect = self._multiscale_stft(x)
         y_spect = self._multiscale_stft(y)
 
-        loss = torch.tensor(0.)
+        loss = torch.tensor(0.0)
         for xs, ys in zip(x_spect, y_spect):
             logx = torch.log(xs + self.eps)
             logy = torch.log(ys + self.eps)

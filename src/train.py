@@ -60,5 +60,7 @@ def do_train(cfg: TrainingConfig) -> None:
         profiler="simple",
         enable_progress_bar=True,
     )
-    checkpoint_kwarg: dict[str, str] = {"ckpt_path": cfg.checkpoint_path} if cfg.checkpoint_path is not None else {}
+    checkpoint_kwarg: dict[str, str] = (
+        {"ckpt_path": cfg.checkpoint_path} if cfg.checkpoint_path is not None else {}
+    )
     trainer.fit(model, train_set, val_set, **checkpoint_kwarg)  # type: ignore

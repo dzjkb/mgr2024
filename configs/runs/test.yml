@@ -3,8 +3,8 @@ train:
   val_dataset_path: data/snares1_val
   log_dir: logs/test
   experiment_name: test
-  epochs: 10
-  device: cpu
+  epochs: 60
+  device: cuda
   batch_size: 32
   model_config: configs/model/test.yml
   callbacks_config: configs/callbacks/test.yml

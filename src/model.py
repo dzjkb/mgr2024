@@ -4,7 +4,7 @@ from attrs import frozen, asdict
 
 import pytorch_lightning as pl
 import torch
-from einops import rearrange
+from einops import rearrange, reduce
 from torch import optim, nn, Tensor
 
 from .loss import MultiScaleSTFTLoss
@@ -41,7 +41,7 @@ class ZeroPad1d(nn.Module):
         super().__init__()
         self._left = padding_left
         self._right = padding_right
-    
+
     def forward(self, x: Tensor) -> Tensor:
         return nn.functional.pad(x, (self._left, self._right))
 
@@ -56,7 +56,9 @@ class ModelConfig:
     reconstruction_loss_weight: float = 1.0
 
     def __post_init__(self) -> None:
-        assert len(self.dilations) == len(self.strides), "strides and dilations need to be the same length (which is the desired amount of encoder/decoder blocks)"
+        assert len(self.dilations) == len(
+            self.strides
+        ), "strides and dilations need to be the same length (which is the desired amount of encoder/decoder blocks)"
 
 
 class _ResidualDilatedUnit(nn.Module):
@@ -84,7 +86,9 @@ class _ResidualDilatedUnit(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         return x + self.net(x)
 
+
 # ================================== ENCODER =============================================
+
 
 class _EncoderBlock(nn.Module):
     """
@@ -102,16 +106,13 @@ class _EncoderBlock(nn.Module):
     ):
         super().__init__()
         self.net = nn.Sequential(
-            *[
-                _ResidualDilatedUnit(in_channels, dilation=d)
-                for d in dilations
-            ],
+            *[_ResidualDilatedUnit(in_channels, dilation=d) for d in dilations],
             nn.LeakyReLU(),
             ZeroPad1d(*_get_strided_padding(stride)),
             nn.Conv1d(
                 in_channels,
-                2*in_channels,
-                kernel_size=2*stride,
+                2 * in_channels,
+                kernel_size=2 * stride,
                 padding=0,
                 stride=stride,
             ),
@@ -138,7 +139,7 @@ class Encoder(nn.Module):
 
         encoder_blocks = [
             _EncoderBlock(start_channels * 2**i, block_dilations, stride)
-            for i, (block_dilations, stride) in enumerate(zip(dilations,strides))
+            for i, (block_dilations, stride) in enumerate(zip(dilations, strides))
         ]
 
         self.net = nn.Sequential(
@@ -151,7 +152,7 @@ class Encoder(nn.Module):
             *encoder_blocks,
             nn.LeakyReLU(),
             nn.Conv1d(
-                start_channels * 2**len(strides),
+                start_channels * 2 ** len(strides),
                 latent_size * 2,  # outputs mean and log-variance for each dim
                 kernel_size=self.output_kernel_size,
                 padding=_get_padding(self.output_kernel_size, 1),
@@ -160,11 +161,13 @@ class Encoder(nn.Module):
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         encoded = self.net(x)
-        mean = encoded[:, :self.latent_size, :]
-        logvar = encoded[:, self.latent_size:, :]
+        mean = encoded[:, : self.latent_size, :]
+        logvar = encoded[:, self.latent_size :, :]
         return mean, logvar
 
+
 # ================================== DECODER =============================================
+
 
 class _DecoderBlock(nn.Module):
     """
@@ -189,15 +192,12 @@ class _DecoderBlock(nn.Module):
             nn.ConvTranspose1d(
                 in_channels,
                 in_channels // 2,
-                kernel_size=2*stride,
+                kernel_size=2 * stride,
                 padding=_get_strided_padding(stride)[1],
                 stride=stride,
                 output_padding=stride % 2,
             ),
-            *[
-                _ResidualDilatedUnit(in_channels // 2, dilation=d)
-                for d in dilations
-            ],
+            *[_ResidualDilatedUnit(in_channels // 2, dilation=d) for d in dilations],
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -221,7 +221,7 @@ class Decoder(nn.Module):
 
         decoder_blocks = [
             _DecoderBlock(start_channels // 2**i, block_dilations, stride)
-            for i, (block_dilations, stride) in enumerate(zip(dilations,strides))
+            for i, (block_dilations, stride) in enumerate(zip(dilations, strides))
         ]
 
         self.net = nn.Sequential(
@@ -234,7 +234,7 @@ class Decoder(nn.Module):
             *decoder_blocks,
             nn.LeakyReLU(),
             nn.Conv1d(
-                start_channels // 2**len(strides),
+                start_channels // 2 ** len(strides),
                 2,  # left/right audio channel
                 kernel_size=self.output_kernel_size,
                 padding=_get_padding(self.output_kernel_size, 1),
@@ -266,7 +266,7 @@ class VAE(pl.LightningModule):
             latent_size=latent_size,
         )
         self.decoder = Decoder(
-            start_channels=capacity * 2**len(strides),
+            start_channels=capacity * 2 ** len(strides),
             dilations=dilations,
             strides=strides[::-1],
             latent_size=latent_size,
@@ -278,11 +278,14 @@ class VAE(pl.LightningModule):
         self.latent_loss_weight = latent_loss_weight
         self.reconstruction_loss_weight = reconstruction_loss_weight
 
-        self.validation_outputs: list[Tensor] = []
+        self.validation_outputs: dict[str, list[Tensor]] = {
+            "audio": [],
+            "latent": [],
+        }
         self.validation_epoch = 0
 
     def _reparametrize(self, mean: Tensor, logvar: Tensor) -> Tensor:
-        std = torch.exp(.5 * logvar)  # type: ignore
+        std = torch.exp(0.5 * logvar)  # type: ignore
         eps = torch.randn_like(std)
         z = eps.mul(std).add_(mean)
         return z
@@ -292,7 +295,7 @@ class VAE(pl.LightningModule):
         # in the future - if normalizing flows add `log_det`
         return (mean.pow(2) + torch.exp(logvar) - logvar - 1).sum(1).mean()
 
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, dict[str, Tensor]]:
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor, dict[str, Tensor]]:
         mean, logvar = self.encoder(x)
         z = self._reparametrize(mean, logvar)
         x_hat = self.decoder(z)
@@ -302,24 +305,25 @@ class VAE(pl.LightningModule):
             "reconstruction_loss": self.reconstruction_loss(x, x_hat),
         }
         total_loss = (
-            self.latent_loss_weight * losses_dict["latent_loss"] +
-            self.reconstruction_loss_weight * losses_dict["reconstruction_loss"]
+            self.latent_loss_weight * losses_dict["latent_loss"]
+            + self.reconstruction_loss_weight * losses_dict["reconstruction_loss"]
         )
-        return x_hat, total_loss, losses_dict
+        return x_hat, z, total_loss, losses_dict
 
     def training_step(self, batch: Tensor, batch_idx: int) -> Tensor:
-        _, loss, losses_dict = self.forward(batch)
+        _, _, loss, losses_dict = self.forward(batch)
         self.log("train_loss", loss, on_step=True, on_epoch=True)
         self.log_dict(losses_dict, on_step=True, on_epoch=True)
         self.log("latent_loss_weight", self.latent_loss_weight)
         return loss
 
     def validation_step(self, batch: Tensor, batch_idx: int) -> None:
-        reconstructed_audio, loss, _ = self.forward(batch)
+        reconstructed_audio, z, loss, _ = self.forward(batch)
         self.log("validation_loss", loss)
 
-        self.validation_outputs.append(reconstructed_audio)
-    
+        self.validation_outputs["audio"].append(reconstructed_audio)
+        self.validation_outputs["latent"].append(z)
+
     def on_validation_epoch_end(self) -> None:
         # TODO: maybe we want more?
         # validation_audio = rearrange(
@@ -327,16 +331,30 @@ class VAE(pl.LightningModule):
         #     "li b c len -> (li b) c len",
         # )
         # taking first batch for now
-        validation_audio = self.validation_outputs[0]
+        validation_audio = self.validation_outputs["audio"][0]
+        assert len(validation_audio.shape) == 3, f"got unexpected shape: {validation_audio.shape}"
 
+        # this supports only mono, what
+        mono_audio: Tensor = reduce(validation_audio, "b c l -> b l", "mean")
+        audio_concatenated: Tensor = rearrange(mono_audio, "b l -> (b l)")
         self.logger.experiment.add_audio(  # type: ignore
             "validation_audio",
-            validation_audio,
+            audio_concatenated.numpy(),
             self.validation_epoch,
             SAMPLING_RATE,
         )
+        self.logger.experiment.add_histogram(  # type: ignore
+            "validation_audio_histogram",
+            audio_concatenated.numpy(),
+            self.validation_epoch,
+            bins="auto",
+        )
 
-        self.validation_outputs = []
+        validation_embeddings = self.validation_outputs["latent"][0]
+        self.logger.experiment.add_embedding(validation_embeddings, tag="latent space")  # type: ignore
+
+        self.validation_outputs["audio"] = []
+        self.validation_outputs["latent"] = []
         self.validation_epoch += 1
 
     def configure_optimizers(self) -> optim.Optimizer:
