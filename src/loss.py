@@ -33,7 +33,7 @@ class MultiScaleSTFTLoss(nn.Module):
         x_spect = self._multiscale_stft(x)
         y_spect = self._multiscale_stft(y)
 
-        loss = torch.tensor(0.0)
+        loss = torch.tensor(0.0, device=x.device)
         for xs, ys in zip(x_spect, y_spect):
             logx = torch.log(xs + self.eps)
             logy = torch.log(ys + self.eps)

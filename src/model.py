@@ -332,26 +332,32 @@ class VAE(pl.LightningModule):
         # )
         # taking first batch for now
         validation_audio = self.validation_outputs["audio"][0]
-        assert len(validation_audio.shape) == 3, f"got unexpected shape: {validation_audio.shape}"
+        assert len(validation_audio.shape) == 3, f"got unexpected audio shape: {validation_audio.shape}"
 
         # this supports only mono, what
         mono_audio: Tensor = reduce(validation_audio, "b c l -> b l", "mean")
         audio_concatenated: Tensor = rearrange(mono_audio, "b l -> (b l)")
         self.logger.experiment.add_audio(  # type: ignore
             "validation_audio",
-            audio_concatenated.numpy(),
+            audio_concatenated.cpu().numpy(),
             self.validation_epoch,
             SAMPLING_RATE,
         )
         self.logger.experiment.add_histogram(  # type: ignore
             "validation_audio_histogram",
-            audio_concatenated.numpy(),
+            audio_concatenated.cpu().numpy(),
             self.validation_epoch,
             bins="auto",
         )
 
         validation_embeddings = self.validation_outputs["latent"][0]
-        self.logger.experiment.add_embedding(validation_embeddings, tag="latent space")  # type: ignore
+        embeddings_concatenated: Tensor = rearrange(validation_embeddings, "b d l -> (b l) d")
+        assert len(validation_embeddings.shape) == 3, f"got unexpected embedding shape: {validation_embeddings.shape}"
+        self.logger.experiment.add_embedding(
+            embeddings_concatenated.cpu().numpy(),
+            tag="latent space",
+            global_step=self.validation_epoch,
+        )  # type: ignore
 
         self.validation_outputs["audio"] = []
         self.validation_outputs["latent"] = []
