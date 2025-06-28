@@ -1,0 +1,12 @@
+defaults:
+  - callbacks: default
+  - model: default
+
+train_dataset_path: data/snares1_train
+val_dataset_path: data/snares1_val
+log_dir: logs/test
+experiment_name: test
+epochs: 600
+device: cuda
+batch_size: 8
+checkpoint_path: null

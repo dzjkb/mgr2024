@@ -233,16 +233,37 @@ class Decoder(nn.Module):
             ),
             *decoder_blocks,
             nn.LeakyReLU(),
-            nn.Conv1d(
-                start_channels // 2 ** len(strides),
-                2,  # left/right audio channel
-                kernel_size=self.output_kernel_size,
-                padding=_get_padding(self.output_kernel_size, 1),
-            ),
+            # nn.Conv1d(
+            #     start_channels // 2 ** len(strides),
+            #     2,  # left/right audio channel
+            #     kernel_size=self.output_kernel_size,
+            #     padding=_get_padding(self.output_kernel_size, 1),
+            # ),
         )
 
+        self.waveform_amp_net = nn.Conv1d(
+            start_channels // 2 ** len(strides),
+            2 * 2,  # left/right audio channel + waveform/amplitude for each
+            kernel_size=self.output_kernel_size,
+            padding=_get_padding(self.output_kernel_size, 1),
+        )
+
+        self.noise_net = lambda t: torch.zeros_like(t)  # TODO ddsp noise
+
     def forward(self, x: Tensor) -> Tensor:
-        return self.net(x)
+        # return self.net(x)
+        x_hat = self.net(x)
+
+        # noise = self.noise_net(x_hat)
+        waveform_amp = self.waveform_amp_net(x_hat)
+        waveform, amp_mod = torch.split(
+            waveform_amp,
+            waveform_amp.shape[1] // 2,
+            dim=1,
+        )
+        amp_modded = waveform * torch.sigmoid(amp_mod)
+        return amp_modded
+        # return amp_modded + noise
 
 
 class VAE(pl.LightningModule):
@@ -343,12 +364,18 @@ class VAE(pl.LightningModule):
             self.validation_epoch,
             SAMPLING_RATE,
         )
-        self.logger.experiment.add_histogram(  # type: ignore
-            "validation_audio_histogram",
-            audio_concatenated.cpu().numpy(),
-            self.validation_epoch,
-            bins="auto",
-        )
+
+        # try:
+        #     self.logger.experiment.add_histogram(  # type: ignore
+        #         "validation_audio_histogram",
+        #         audio_concatenated.cpu().numpy(),
+        #         self.validation_epoch,
+        #         bins="fd",
+        #     )
+        # except Exception as e:  # breaks sometimes :c
+        #     print(f"warning: failed to write histograms for epoch {self.validation_epoch} with exception:")
+        #     print(repr(e))
+        #     print("="*40)
 
         validation_embeddings = self.validation_outputs["latent"][0]
         embeddings_concatenated: Tensor = rearrange(validation_embeddings, "b d l -> (b l) d")

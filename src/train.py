@@ -22,8 +22,8 @@ class TrainingConfig:
     batch_size: int
     device: str
     checkpoint_path: str | None
-    model_config: ModelConfig
-    callbacks_config: CallbacksConfig
+    model: ModelConfig
+    callbacks: CallbacksConfig
 
 
 def _log_config(cfg: TrainingConfig, path: str) -> None:
@@ -38,9 +38,7 @@ def _run_name(experiment_name: str) -> str:
 
 
 def do_train(cfg: TrainingConfig) -> None:
-    _log_config(cfg, f"{cfg.log_dir}/config.yaml")
-
-    model = VAE(**asdict(cfg.model_config))
+    model = VAE(**asdict(cfg.model))
     train_set = DataLoader(
         AudioDataset(Path(cfg.train_dataset_path), transforms=[]),
         batch_size=cfg.batch_size,
@@ -51,12 +49,14 @@ def do_train(cfg: TrainingConfig) -> None:
         batch_size=cfg.batch_size,
     )
 
+    logger = TensorBoardLogger(save_dir=cfg.log_dir, name=_run_name(cfg.experiment_name))
+    _log_config(cfg, f"{logger.log_dir}/config.yaml")
     trainer = pl.Trainer(
-        logger=TensorBoardLogger(save_dir=cfg.log_dir, name=_run_name(cfg.experiment_name)),
+        logger=logger,
         max_epochs=cfg.epochs,
         accelerator=cfg.device,
         devices=1,
-        callbacks=init_callbacks(cfg.callbacks_config),
+        callbacks=init_callbacks(cfg.callbacks),
         profiler="simple",
         enable_progress_bar=True,
     )
