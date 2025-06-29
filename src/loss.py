@@ -51,5 +51,5 @@ class MultiScaleSTFTLoss(nn.Module):
         return (x - y).abs().mean()
 
     @staticmethod
-    def _l2_relative_distance(x: Tensor, y: Tensor) -> Tensor:
-        return torch.pow(x - y, 2).mean() / torch.pow(y, 2).mean()
+    def _l2_relative_distance(x: Tensor, y: Tensor, eps: float = 1e-7) -> Tensor:
+        return torch.pow(x - y, 2).mean() / (torch.pow(y, 2).mean() + eps)

@@ -1,13 +1,17 @@
 from math import floor, ceil
 
-from attrs import frozen, asdict
+from attrs import frozen
 
+import matplotlib.pyplot as plt
+import seaborn as sns
 import pytorch_lightning as pl
 import torch
+import torch.autograd
 from einops import rearrange, reduce
 from torch import optim, nn, Tensor
 
 from .loss import MultiScaleSTFTLoss
+from .plots import draw_histogram
 
 SAMPLING_RATE = 48000
 
@@ -357,25 +361,31 @@ class VAE(pl.LightningModule):
 
         # this supports only mono, what
         mono_audio: Tensor = reduce(validation_audio, "b c l -> b l", "mean")
-        audio_concatenated: Tensor = rearrange(mono_audio, "b l -> (b l)")
+        audio_concatenated: Tensor = rearrange(mono_audio, "b l -> (b l)").cpu()
         self.logger.experiment.add_audio(  # type: ignore
             "validation_audio",
-            audio_concatenated.cpu().numpy(),
+            audio_concatenated.numpy(),
             self.validation_epoch,
             SAMPLING_RATE,
         )
 
-        # try:
-        #     self.logger.experiment.add_histogram(  # type: ignore
-        #         "validation_audio_histogram",
-        #         audio_concatenated.cpu().numpy(),
-        #         self.validation_epoch,
-        #         bins="fd",
-        #     )
-        # except Exception as e:  # breaks sometimes :c
-        #     print(f"warning: failed to write histograms for epoch {self.validation_epoch} with exception:")
-        #     print(repr(e))
-        #     print("="*40)
+        # self.logger.experiment.add_histogram(  # type: ignore
+        #     "validation_audio_histogram",
+        #     audio_concatenated.numpy(),
+        #     self.validation_epoch,
+        #     bins="fd",
+        # )
+        # histograms don't work and are expensive and all that, eh
+        self.log("validation_audio_min", audio_concatenated.min())
+        self.log("validation_audio_max", audio_concatenated.max())
+        self.log("validation_audio_mean", audio_concatenated.mean())
+
+        # also expensive it seems, eh
+        # self.logger.experiment.add_figure(  # type: ignore
+        #     "validation_audio_histogram",
+        #     draw_histogram(audio_concatenated.numpy()),
+        #     self.validation_epoch,
+        # )
 
         validation_embeddings = self.validation_outputs["latent"][0]
         embeddings_concatenated: Tensor = rearrange(validation_embeddings, "b d l -> (b l) d")
@@ -389,6 +399,9 @@ class VAE(pl.LightningModule):
         self.validation_outputs["audio"] = []
         self.validation_outputs["latent"] = []
         self.validation_epoch += 1
+
+        if self.validation_epoch > 100:
+            torch.autograd.set_detect_anomaly(True)
 
     def configure_optimizers(self) -> optim.Optimizer:
         optimizer = optim.Adam(self.parameters(), lr=1e-3)

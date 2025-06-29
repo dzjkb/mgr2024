@@ -59,6 +59,7 @@ def do_train(cfg: TrainingConfig) -> None:
         callbacks=init_callbacks(cfg.callbacks),
         profiler="simple",
         enable_progress_bar=True,
+        # check_val_every_n_epoch=10,
     )
     checkpoint_kwarg: dict[str, str] = (
         {"ckpt_path": cfg.checkpoint_path} if cfg.checkpoint_path is not None else {}
