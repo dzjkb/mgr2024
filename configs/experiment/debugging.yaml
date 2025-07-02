@@ -1,0 +1,5 @@
+# @package _global_
+
+model:
+  monitor_grad_norm: true
+  detect_nans: true

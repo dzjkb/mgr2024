@@ -1,6 +1,7 @@
 defaults:
   - callbacks: default
   - model: default
+  - noise_synth: default
 
 train_dataset_path: data/snares1_train
 val_dataset_path: data/snares1_val

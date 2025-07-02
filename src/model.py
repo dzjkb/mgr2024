@@ -1,6 +1,6 @@
 from math import floor, ceil
 
-from attrs import frozen
+from attrs import frozen, asdict
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -12,6 +12,7 @@ from torch import optim, nn, Tensor
 
 from .loss import MultiScaleSTFTLoss
 from .plots import draw_histogram
+from .noise import Noise, NoiseConfig
 
 SAMPLING_RATE = 48000
 
@@ -58,6 +59,9 @@ class ModelConfig:
     strides: list[int]
     latent_loss_weight: float = 0.5
     reconstruction_loss_weight: float = 1.0
+    adam_betas: tuple[float, float] = (0.5, 0.9)
+    monitor_grad_norm: bool = False
+    detect_nans: bool = False
 
     def __post_init__(self) -> None:
         assert len(self.dilations) == len(
@@ -109,15 +113,19 @@ class _EncoderBlock(nn.Module):
         stride: int,
     ):
         super().__init__()
+        # assert stride % 2 == 0, f"stride should be even, got {stride}"
+
         self.net = nn.Sequential(
             *[_ResidualDilatedUnit(in_channels, dilation=d) for d in dilations],
             nn.LeakyReLU(),
+            # asymmetrical padding might be breaking something, try sym
             ZeroPad1d(*_get_strided_padding(stride)),
             nn.Conv1d(
                 in_channels,
                 2 * in_channels,
                 kernel_size=2 * stride,
                 padding=0,
+                # padding=stride // 2,
                 stride=stride,
             ),
         )
@@ -218,6 +226,7 @@ class Decoder(nn.Module):
         dilations: list[list[int]],
         strides: list[int],
         latent_size: int,
+        noise_config: NoiseConfig,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -252,13 +261,15 @@ class Decoder(nn.Module):
             padding=_get_padding(self.output_kernel_size, 1),
         )
 
-        self.noise_net = lambda t: torch.zeros_like(t)  # TODO ddsp noise
+        self.noise_net = Noise(
+            in_channels=start_channels // 2 ** len(strides),
+            **asdict(noise_config),
+        )
 
     def forward(self, x: Tensor) -> Tensor:
-        # return self.net(x)
         x_hat = self.net(x)
 
-        # noise = self.noise_net(x_hat)
+        noise = self.noise_net(x_hat)
         waveform_amp = self.waveform_amp_net(x_hat)
         waveform, amp_mod = torch.split(
             waveform_amp,
@@ -266,8 +277,7 @@ class Decoder(nn.Module):
             dim=1,
         )
         amp_modded = waveform * torch.sigmoid(amp_mod)
-        return amp_modded
-        # return amp_modded + noise
+        return amp_modded + noise
 
 
 class VAE(pl.LightningModule):
@@ -277,9 +287,14 @@ class VAE(pl.LightningModule):
         latent_size: int,
         dilations: list[list[int]],
         strides: list[int],
+        noise_config: NoiseConfig,
         stft_window_sizes: list[int] | None = None,
         latent_loss_weight: float = 0.5,
         reconstruction_loss_weight: float = 1.0,
+        adam_betas: tuple[float, float] = (0.5, 0.9),
+        lr_decay_steps: int = 10000,
+        monitor_grad_norm: bool = False,
+        detect_nans: bool = False,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -295,6 +310,7 @@ class VAE(pl.LightningModule):
             dilations=dilations,
             strides=strides[::-1],
             latent_size=latent_size,
+            noise_config=noise_config,
         )
 
         _window_sizes = stft_window_sizes or [2048, 1024, 512, 256, 128]
@@ -302,6 +318,10 @@ class VAE(pl.LightningModule):
 
         self.latent_loss_weight = latent_loss_weight
         self.reconstruction_loss_weight = reconstruction_loss_weight
+        self.betas = adam_betas
+        self.lr_decay_steps = lr_decay_steps
+        self.monitor_grad_norm = monitor_grad_norm
+        self.detect_nans = detect_nans
 
         self.validation_outputs: dict[str, list[Tensor]] = {
             "audio": [],
@@ -400,9 +420,25 @@ class VAE(pl.LightningModule):
         self.validation_outputs["latent"] = []
         self.validation_epoch += 1
 
-        if self.validation_epoch > 100:
+        if self.detect_nans:
             torch.autograd.set_detect_anomaly(True)
 
     def configure_optimizers(self) -> optim.Optimizer:
-        optimizer = optim.Adam(self.parameters(), lr=1e-3)
-        return optimizer
+        optimizer = optim.Adam(self.parameters(), lr=1e-3, betas=self.betas)
+        lr_schedule = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, self.lr_decay_steps, eta_min=1e-5
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {"scheduler": lr_schedule},
+        }
+
+    def on_train_batch_end(self, x_hat: Tensor, batch: Tensor, batch_idx: int) -> None:
+        if self.monitor_grad_norm:
+            grad_norm = sum(
+                p.grad.data.norm(2).item() ** 2
+                for p in [*self.encoder.parameters(), *self.decoder.parameters()]
+                if p.grad is not None
+            ) ** (1./2)
+
+            self.log("grad_norm", grad_norm)
