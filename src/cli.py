@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Any, cast, Generator
 from pathlib import Path
 
 import click
@@ -64,6 +64,46 @@ def resample_dataset(in_dir: str, out_dir: str, in_sample_rate: int) -> None:
                 ta.functional.resample(audio, sr, SAMPLING_RATE),
                 SAMPLING_RATE,
             )
+
+
+@jpmgr.command()
+@click.option("--in_file", type=click.Path())
+@click.option("--target_dir", type=click.Path())
+@click.option("--target_length", type=float, help="target length of dataset samples in seconds")
+@click.option("--overlap", type=float, help="overlap of dataset samples in seconds")
+def dataset_from_file(in_file: str, target_dir: str, target_length: float, overlap: float) -> None:
+    """
+    this command cuts a given audio file into clips of `target_length` seconds and puts them in `target_dir`.
+    """
+
+    target_path = Path(target_dir)
+    target_path.mkdir(exist_ok=True, parents=True)
+
+    target_length_samples = int(target_length * SAMPLING_RATE)
+    overlap_samples = int(overlap * SAMPLING_RATE)
+
+    def _overlapping_chunks(
+        total_length: int, chunk_length: int, chunk_overlap: int
+    ) -> Generator[tuple[int, int], None, None]:
+        for i in range(0, total_length, chunk_length - chunk_overlap):
+            yield i, i+chunk_length
+
+    in_audio, sr = ta.load(in_file)
+    if sr != SAMPLING_RATE:
+        in_audio = ta.functional.resample(in_audio, sr, SAMPLING_RATE)
+
+    in_name = Path(in_file).stem
+    for idx, (start, end) in tqdm(
+        enumerate(
+            _overlapping_chunks(in_audio.shape[-1], target_length_samples, overlap_samples)
+        ),
+        total=in_audio.shape[-1] // (target_length_samples - overlap_samples),
+    ):
+        ta.save(
+            target_path / f"{in_name}_part_{idx}.wav",
+            in_audio[..., start:end],
+            SAMPLING_RATE,
+        )
 
 
 if __name__ == "__main__":

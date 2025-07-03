@@ -1,0 +1,12 @@
+# @package _global_
+
+model:
+  detect_nans: true
+  lr_decay_steps: 40000
+
+train_dataset_path: data/ambient/peripeteia_train
+val_dataset_path: data/ambient/peripeteia_val
+log_dir: logs/peripeteia
+experiment_name: peripeteia
+epochs: 300
+batch_size: 16

@@ -226,7 +226,7 @@ class Decoder(nn.Module):
         dilations: list[list[int]],
         strides: list[int],
         latent_size: int,
-        noise_config: NoiseConfig,
+        noise_config: NoiseConfig | None,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -261,15 +261,18 @@ class Decoder(nn.Module):
             padding=_get_padding(self.output_kernel_size, 1),
         )
 
-        self.noise_net = Noise(
-            in_channels=start_channels // 2 ** len(strides),
-            **asdict(noise_config),
+        self.noise_net = (
+            Noise(
+                in_channels=start_channels // 2 ** len(strides),
+                **asdict(noise_config),
+            )
+            if noise_config is not None
+            else None
         )
 
     def forward(self, x: Tensor) -> Tensor:
         x_hat = self.net(x)
 
-        noise = self.noise_net(x_hat)
         waveform_amp = self.waveform_amp_net(x_hat)
         waveform, amp_mod = torch.split(
             waveform_amp,
@@ -277,7 +280,12 @@ class Decoder(nn.Module):
             dim=1,
         )
         amp_modded = waveform * torch.sigmoid(amp_mod)
-        return amp_modded + noise
+
+        if self.noise_net is not None:
+            noise = self.noise_net(x_hat)
+            return torch.tanh(amp_modded + noise)
+        else:
+            return amp_modded
 
 
 class VAE(pl.LightningModule):
@@ -287,7 +295,7 @@ class VAE(pl.LightningModule):
         latent_size: int,
         dilations: list[list[int]],
         strides: list[int],
-        noise_config: NoiseConfig,
+        noise_config: NoiseConfig | None,
         stft_window_sizes: list[int] | None = None,
         latent_loss_weight: float = 0.5,
         reconstruction_loss_weight: float = 1.0,
@@ -326,6 +334,7 @@ class VAE(pl.LightningModule):
         self.validation_outputs: dict[str, list[Tensor]] = {
             "audio": [],
             "latent": [],
+            "original": [],
         }
         self.validation_epoch = 0
 
@@ -357,17 +366,26 @@ class VAE(pl.LightningModule):
 
     def training_step(self, batch: Tensor, batch_idx: int) -> Tensor:
         _, _, loss, losses_dict = self.forward(batch)
-        self.log("train_loss", loss, on_step=True, on_epoch=True)
-        self.log_dict(losses_dict, on_step=True, on_epoch=True)
+        self.log("loss/train_loss", loss, on_step=True, on_epoch=True)
+        for loss_key, value_tensor in losses_dict.items():
+            self.log(f"loss/{loss_key}", value_tensor, on_step=True, on_epoch=True)
         self.log("latent_loss_weight", self.latent_loss_weight)
         return loss
 
     def validation_step(self, batch: Tensor, batch_idx: int) -> None:
         reconstructed_audio, z, loss, _ = self.forward(batch)
-        self.log("validation_loss", loss)
+        self.log("loss/validation_loss", loss)
 
+        self.validation_outputs["original"].append(batch)
         self.validation_outputs["audio"].append(reconstructed_audio)
         self.validation_outputs["latent"].append(z)
+
+    @staticmethod
+    def _mono_concatenate_batch(audio: Tensor) -> Tensor:
+        assert len(audio.shape) == 3, f"got unexpected audio shape: {audio.shape}"
+        mono_audio: Tensor = reduce(audio, "b c l -> b l", "mean")
+        audio_concatenated: Tensor = rearrange(mono_audio, "b l -> (b l)").cpu()
+        return audio_concatenated
 
     def on_validation_epoch_end(self) -> None:
         # TODO: maybe we want more?
@@ -377,17 +395,21 @@ class VAE(pl.LightningModule):
         # )
         # taking first batch for now
         validation_audio = self.validation_outputs["audio"][0]
-        assert len(validation_audio.shape) == 3, f"got unexpected audio shape: {validation_audio.shape}"
-
-        # this supports only mono, what
-        mono_audio: Tensor = reduce(validation_audio, "b c l -> b l", "mean")
-        audio_concatenated: Tensor = rearrange(mono_audio, "b l -> (b l)").cpu()
+        audio_concatenated = self._mono_concatenate_batch(validation_audio)
         self.logger.experiment.add_audio(  # type: ignore
             "validation_audio",
             audio_concatenated.numpy(),
             self.validation_epoch,
             SAMPLING_RATE,
         )
+        if self.validation_epoch <= 0:
+            original_audio = self.validation_outputs["original"][0]
+            self.logger.experiment.add_audio(  # type: ignore
+                "validation_audio_original",
+                self._mono_concatenate_batch(original_audio).numpy(),
+                self.validation_epoch,
+                SAMPLING_RATE,
+            )
 
         # self.logger.experiment.add_histogram(  # type: ignore
         #     "validation_audio_histogram",
@@ -396,9 +418,9 @@ class VAE(pl.LightningModule):
         #     bins="fd",
         # )
         # histograms don't work and are expensive and all that, eh
-        self.log("validation_audio_min", audio_concatenated.min())
-        self.log("validation_audio_max", audio_concatenated.max())
-        self.log("validation_audio_mean", audio_concatenated.mean())
+        self.log("audio_stats/validation_audio_min", audio_concatenated.min())
+        self.log("audio_stats/validation_audio_max", audio_concatenated.max())
+        self.log("audio_stats/validation_audio_mean", audio_concatenated.mean())
 
         # also expensive it seems, eh
         # self.logger.experiment.add_figure(  # type: ignore
@@ -418,6 +440,7 @@ class VAE(pl.LightningModule):
 
         self.validation_outputs["audio"] = []
         self.validation_outputs["latent"] = []
+        self.validation_outputs["original"] = []
         self.validation_epoch += 1
 
         if self.detect_nans:

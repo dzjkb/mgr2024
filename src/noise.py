@@ -50,7 +50,7 @@ class Noise(nn.Module):
             ),
             nn.Conv1d(
                 latent_size,
-                n_filters * in_channels,
+                n_filters * 2,  # left/right channels
                 kernel_size=2 * strides[-1],
                 padding=strides[-1] // 2,
                 stride=strides[-1],
@@ -80,8 +80,8 @@ class Noise(nn.Module):
     def _convolve(audio: Tensor, irs: Tensor) -> Tensor:
         assert list(audio.shape) == list(irs.shape)
 
-        audio_padded = nn.functional.pad(audio_padded, (0, audio_padded.shape[-1]))
-        irs_padded = nn.functional.pad(irs_padded, (irs_padded.shape[-1], 0))
+        audio_padded = nn.functional.pad(audio, (0, audio.shape[-1]))
+        irs_padded = nn.functional.pad(irs, (irs.shape[-1], 0))
 
         convolved = fft.irfft(fft.rfft(audio_padded) * fft.rfft(irs_padded))
         return convolved[..., convolved.shape[-1] // 2:]

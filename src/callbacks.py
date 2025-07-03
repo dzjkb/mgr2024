@@ -16,7 +16,7 @@ class CallbacksConfig:
 
 def init_callbacks(cfg: CallbacksConfig) -> list[pl.Callback]:
     callbacks: list[pl.Callback] = [
-        pl.callbacks.ModelCheckpoint(monitor="validation_loss", filename="best"),
+        pl.callbacks.ModelCheckpoint(monitor="loss/validation_loss", filename="best"),
         pl.callbacks.ModelCheckpoint(save_last=True, save_top_k=0),
     ]
 

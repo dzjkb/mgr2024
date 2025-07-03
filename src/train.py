@@ -45,10 +45,12 @@ def do_train(cfg: TrainingConfig) -> None:
         AudioDataset(Path(cfg.train_dataset_path), transforms=[]),
         batch_size=cfg.batch_size,
         shuffle=True,
+        num_workers=8,
     )
     val_set = DataLoader(
         AudioDataset(Path(cfg.val_dataset_path), transforms=[]),
         batch_size=cfg.batch_size,
+        num_workers=8,
     )
 
     logger = TensorBoardLogger(save_dir=cfg.log_dir, name=_run_name(cfg.experiment_name))
@@ -62,6 +64,7 @@ def do_train(cfg: TrainingConfig) -> None:
         profiler="simple",
         enable_progress_bar=True,
         # check_val_every_n_epoch=10,
+        log_every_n_steps=25,
     )
     checkpoint_kwarg: dict[str, str] = (
         {"ckpt_path": cfg.checkpoint_path} if cfg.checkpoint_path is not None else {}

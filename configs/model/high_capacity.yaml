@@ -1,0 +1,9 @@
+capacity: 128
+latent_size: 128
+dilations:
+  - [1, 3, 9]
+  - [1, 3, 9]
+  - [1, 3, 9]
+  - [1, 3, 9]
+strides: [2, 4, 5, 8]
+lr_decay_steps: 40000

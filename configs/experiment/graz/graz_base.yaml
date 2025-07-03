@@ -1,0 +1,15 @@
+# @package _global_
+
+defaults:
+  - override /callbacks: betawarmup20000
+  - override /model: high_capacity
+
+model:
+  detect_nans: true
+
+train_dataset_path: data/piano/graz_train
+val_dataset_path: data/piano/graz_val
+log_dir: logs/graz
+experiment_name: graz
+epochs: 300
+batch_size: 2

@@ -1,5 +1,5 @@
 # @package _global_
 
 model:
-  monitor_grad_norm: true
+  monitor_grad_norm: false
   detect_nans: true
