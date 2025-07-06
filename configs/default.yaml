@@ -2,6 +2,7 @@ defaults:
   - callbacks: default
   - model: default
   - noise: default
+  - dataset: sr48000
 
 train_dataset_path: data/snares1_train
 val_dataset_path: data/snares1_val

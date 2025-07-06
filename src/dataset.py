@@ -5,6 +5,7 @@ from typing import Callable as Fn
 
 import torch
 import torchaudio as ta
+from attrs import frozen
 from torch.nn import functional as F
 from torch.utils import data
 from tqdm import tqdm
@@ -27,6 +28,7 @@ def _random_crop(length: int) -> TransformType:
 
 
 def _zero_pad_cut(length: int) -> TransformType:
+    assert length > 0, f"zero_pad_cut transform got invalid length {length}"
     def _transform_f(x: torch.Tensor) -> torch.Tensor:
         to_pad = length - x.shape[-1]
         if to_pad <= 0:
@@ -45,12 +47,19 @@ def _make_stereo() -> TransformType:
     return _transform_f
 
 
+@frozen
+class DatasetConfig:
+    expected_sample_rate: int
+    zero_pad_cut: int | None
+
+
 class AudioDataset(data.Dataset[torch.Tensor]):
     def __init__(
         self,
         dataset_dir: Path,
-        transforms: list[TransformType],
+        # transforms: list[TransformType],
         expected_sample_rate: int = 48000,
+        zero_pad_cut: int | None = None,
     ) -> None:
         self.dataset_dir = dataset_dir
         self.name = dataset_dir.name
@@ -63,7 +72,7 @@ class AudioDataset(data.Dataset[torch.Tensor]):
 
         self.transforms = compose_left(
             *[
-                _zero_pad_cut(72000),
+                _zero_pad_cut(zero_pad_cut) if zero_pad_cut is not None else _id_transform,
                 _make_stereo(),  # some of the wavs are mono
             ]
         )

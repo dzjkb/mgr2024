@@ -18,6 +18,7 @@ def init_callbacks(cfg: CallbacksConfig) -> list[pl.Callback]:
     callbacks: list[pl.Callback] = [
         pl.callbacks.ModelCheckpoint(monitor="loss/validation_loss", filename="best"),
         pl.callbacks.ModelCheckpoint(save_last=True, save_top_k=0),
+        pl.callbacks.LearningRateMonitor(logging_interval="epoch"),
     ]
 
     if cfg.initial_latent_weight:

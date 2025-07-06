@@ -62,6 +62,8 @@ class ModelConfig:
     adam_betas: tuple[float, float] = (0.5, 0.9)
     monitor_grad_norm: bool = False
     detect_nans: bool = False
+    initial_lr: float = 1e-4
+    final_lr: float = 1e-5
 
     def __post_init__(self) -> None:
         assert len(self.dilations) == len(
@@ -303,6 +305,8 @@ class VAE(pl.LightningModule):
         lr_decay_steps: int = 10000,
         monitor_grad_norm: bool = False,
         detect_nans: bool = False,
+        initial_lr: float = 1e-4,
+        final_lr: float = 1e-5,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -330,6 +334,8 @@ class VAE(pl.LightningModule):
         self.lr_decay_steps = lr_decay_steps
         self.monitor_grad_norm = monitor_grad_norm
         self.detect_nans = detect_nans
+        self.initial_lr = initial_lr
+        self.final_lr = final_lr
 
         self.validation_outputs: dict[str, list[Tensor]] = {
             "audio": [],
@@ -447,9 +453,9 @@ class VAE(pl.LightningModule):
             torch.autograd.set_detect_anomaly(True)
 
     def configure_optimizers(self) -> optim.Optimizer:
-        optimizer = optim.Adam(self.parameters(), lr=1e-3, betas=self.betas)
-        lr_schedule = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, self.lr_decay_steps, eta_min=1e-5
+        optimizer = optim.Adam(self.parameters(), lr=self.initial_lr, betas=self.betas)
+        lr_schedule = optim.lr_scheduler.LinearLR(
+            optimizer, 1.0, self.final_lr / self.initial_lr, self.lr_decay_steps
         )
         return {
             "optimizer": optimizer,

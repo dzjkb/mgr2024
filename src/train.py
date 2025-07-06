@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from .model import VAE, ModelConfig
-from .dataset import AudioDataset
+from .dataset import AudioDataset, DatasetConfig
 from .callbacks import init_callbacks, CallbacksConfig
 from .noise import NoiseConfig
 
@@ -26,6 +26,7 @@ class TrainingConfig:
     model: ModelConfig
     callbacks: CallbacksConfig
     noise: NoiseConfig
+    dataset: DatasetConfig
 
 
 def _log_config(cfg: TrainingConfig, path: str) -> None:
@@ -42,13 +43,13 @@ def _run_name(experiment_name: str) -> str:
 def do_train(cfg: TrainingConfig) -> None:
     model = VAE(noise_config=cfg.noise, **asdict(cfg.model))
     train_set = DataLoader(
-        AudioDataset(Path(cfg.train_dataset_path), transforms=[]),
+        AudioDataset(Path(cfg.train_dataset_path), **asdict(cfg.dataset)),
         batch_size=cfg.batch_size,
         shuffle=True,
         num_workers=8,
     )
     val_set = DataLoader(
-        AudioDataset(Path(cfg.val_dataset_path), transforms=[]),
+        AudioDataset(Path(cfg.val_dataset_path), **asdict(cfg.dataset)),
         batch_size=cfg.batch_size,
         num_workers=8,
     )
