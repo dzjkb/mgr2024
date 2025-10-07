@@ -1,0 +1,7 @@
+# @package _global_
+
+defaults:
+  - snares
+
+checkpoint_path: /home/jp/mgr2024/logs/snares/snares_2025-07-09_14-45/version_0/checkpoints/last.ckpt
+

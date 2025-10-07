@@ -1,0 +1,2 @@
+zero_pad_cut: 72000  # 1.5 * 48000
+expected_sample_rate: 48000

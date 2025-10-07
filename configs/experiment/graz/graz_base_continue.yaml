@@ -1,0 +1,7 @@
+# @package _global_
+
+defaults:
+  - graz/graz_base
+
+checkpoint_path: /home/jp/mgr2024/logs/graz/graz_2025-07-06_17-02/version_0/checkpoints/last.ckpt
+

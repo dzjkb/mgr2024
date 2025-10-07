@@ -1,0 +1,13 @@
+# @package _global_
+
+defaults:
+  - override /callbacks: betawarmup50000
+  - override /model: medium_capacity
+  - override /dataset: sr48000_1.5s
+
+model:
+  detect_nans: true
+
+log_dir: logs/snares
+experiment_name: snares
+batch_size: 4

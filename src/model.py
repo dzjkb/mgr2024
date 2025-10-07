@@ -379,8 +379,10 @@ class VAE(pl.LightningModule):
         return loss
 
     def validation_step(self, batch: Tensor, batch_idx: int) -> None:
-        reconstructed_audio, z, loss, _ = self.forward(batch)
+        reconstructed_audio, z, loss, losses_dict = self.forward(batch)
         self.log("loss/validation_loss", loss)
+        self.log("loss/validation_reconstruction_loss", losses_dict["reconstruction_loss"])
+        self.log("loss/validation_latent_loss", losses_dict["latent_loss"])
 
         self.validation_outputs["original"].append(batch)
         self.validation_outputs["audio"].append(reconstructed_audio)
