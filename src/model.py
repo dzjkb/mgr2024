@@ -9,6 +9,7 @@ import torch
 import torch.autograd
 from einops import rearrange, reduce
 from torch import optim, nn, Tensor
+from torch.nn.utils import weight_norm
 
 from .loss import MultiScaleSTFTLoss
 from .plots import draw_histogram
@@ -64,6 +65,8 @@ class ModelConfig:
     detect_nans: bool = False
     initial_lr: float = 1e-4
     final_lr: float = 1e-5
+    do_amp_mod: bool = True
+    do_weight_norm: bool = True
 
     def __post_init__(self) -> None:
         assert len(self.dilations) == len(
@@ -78,19 +81,26 @@ class _ResidualDilatedUnit(nn.Module):
         self,
         channels: int,
         dilation: int,
+        do_weight_norm: bool,
     ):
         super().__init__()
+
+        def _weightnorm(m: nn.Module) -> nn.Module:
+            return m if not do_weight_norm else weight_norm(m)
+
         self.net = nn.Sequential(
             nn.LeakyReLU(),
-            nn.Conv1d(
-                channels,
-                channels,
-                kernel_size=self.kernel_size,
-                dilation=dilation,
-                padding=_get_padding(self.kernel_size, dilation),
+            _weightnorm(
+                nn.Conv1d(
+                    channels,
+                    channels,
+                    kernel_size=self.kernel_size,
+                    dilation=dilation,
+                    padding=_get_padding(self.kernel_size, dilation),
+                )
             ),
             nn.LeakyReLU(),
-            nn.Conv1d(channels, channels, kernel_size=1),
+            _weightnorm(nn.Conv1d(channels, channels, kernel_size=1)),
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -113,22 +123,28 @@ class _EncoderBlock(nn.Module):
         in_channels: int,
         dilations: list[int],
         stride: int,
+        do_weight_norm: bool,
     ):
         super().__init__()
         # assert stride % 2 == 0, f"stride should be even, got {stride}"
 
+        def _weightnorm(m: nn.Module) -> nn.Module:
+            return m if not do_weight_norm else weight_norm(m)
+
         self.net = nn.Sequential(
-            *[_ResidualDilatedUnit(in_channels, dilation=d) for d in dilations],
+            *[_ResidualDilatedUnit(in_channels, dilation=d, do_weight_norm=do_weight_norm) for d in dilations],
             nn.LeakyReLU(),
             # asymmetrical padding might be breaking something, try sym
             ZeroPad1d(*_get_strided_padding(stride)),
-            nn.Conv1d(
-                in_channels,
-                2 * in_channels,
-                kernel_size=2 * stride,
-                padding=0,
-                # padding=stride // 2,
-                stride=stride,
+            _weightnorm(
+                nn.Conv1d(
+                    in_channels,
+                    2 * in_channels,
+                    kernel_size=2 * stride,
+                    padding=0,
+                    # padding=stride // 2,
+                    stride=stride,
+                )
             ),
         )
 
@@ -146,6 +162,7 @@ class Encoder(nn.Module):
         dilations: list[list[int]],
         strides: list[int],
         latent_size: int,
+        do_weight_norm: bool,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -156,20 +173,27 @@ class Encoder(nn.Module):
             for i, (block_dilations, stride) in enumerate(zip(dilations, strides))
         ]
 
+        def _weightnorm(m: nn.Module) -> nn.Module:
+            return m if not do_weight_norm else weight_norm(m)
+
         self.net = nn.Sequential(
-            nn.Conv1d(
-                2,  # left/right audio channel
-                start_channels,
-                kernel_size=self.input_kernel_size,
-                padding=_get_padding(self.input_kernel_size, 1),
+            _weightnorm(
+                nn.Conv1d(
+                    2,  # left/right audio channel
+                    start_channels,
+                    kernel_size=self.input_kernel_size,
+                    padding=_get_padding(self.input_kernel_size, 1),
+                )
             ),
             *encoder_blocks,
             nn.LeakyReLU(),
-            nn.Conv1d(
-                start_channels * 2 ** len(strides),
-                latent_size * 2,  # outputs mean and log-variance for each dim
-                kernel_size=self.output_kernel_size,
-                padding=_get_padding(self.output_kernel_size, 1),
+            _weightnorm(
+                nn.Conv1d(
+                    start_channels * 2 ** len(strides),
+                    latent_size * 2,  # outputs mean and log-variance for each dim
+                    kernel_size=self.output_kernel_size,
+                    padding=_get_padding(self.output_kernel_size, 1),
+                )
             ),
         )
 
@@ -196,22 +220,28 @@ class _DecoderBlock(nn.Module):
         in_channels: int,
         dilations: list[int],
         stride: int,
+        do_weight_norm: bool,
     ):
         super().__init__()
         # again, for simplicity - this will always be the case
         assert in_channels % 2 == 0
 
+        def _weightnorm(m: nn.Module) -> nn.Module:
+            return m if not do_weight_norm else weight_norm(m)
+
         self.net = nn.Sequential(
             nn.LeakyReLU(),
-            nn.ConvTranspose1d(
-                in_channels,
-                in_channels // 2,
-                kernel_size=2 * stride,
-                padding=_get_strided_padding(stride)[1],
-                stride=stride,
-                output_padding=stride % 2,
+            _weightnorm(
+                nn.ConvTranspose1d(
+                    in_channels,
+                    in_channels // 2,
+                    kernel_size=2 * stride,
+                    padding=_get_strided_padding(stride)[1],
+                    stride=stride,
+                    output_padding=stride % 2,
+                )
             ),
-            *[_ResidualDilatedUnit(in_channels // 2, dilation=d) for d in dilations],
+            *[_ResidualDilatedUnit(in_channels // 2, dilation=d, do_weight_norm=do_weight_norm) for d in dilations],
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -229,38 +259,51 @@ class Decoder(nn.Module):
         strides: list[int],
         latent_size: int,
         noise_config: NoiseConfig | None,
+        do_amp_mod: bool,
+        do_weight_norm: bool,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
         self.latent_size = latent_size
+        self.do_amp_mod = do_amp_mod
 
         decoder_blocks = [
-            _DecoderBlock(start_channels // 2**i, block_dilations, stride)
+            _DecoderBlock(start_channels // 2**i, block_dilations, stride, do_weight_norm)
             for i, (block_dilations, stride) in enumerate(zip(dilations, strides))
         ]
 
+        def _weightnorm(m: nn.Module) -> nn.Module:
+            return m if not do_weight_norm else weight_norm(m)
+
         self.net = nn.Sequential(
-            nn.Conv1d(
-                latent_size,
-                start_channels,
-                kernel_size=self.input_kernel_size,
-                padding=_get_padding(self.input_kernel_size, 1),
+            _weightnorm(
+                nn.Conv1d(
+                    latent_size,
+                    start_channels,
+                    kernel_size=self.input_kernel_size,
+                    padding=_get_padding(self.input_kernel_size, 1),
+                )
             ),
             *decoder_blocks,
             nn.LeakyReLU(),
-            # nn.Conv1d(
-            #     start_channels // 2 ** len(strides),
-            #     2,  # left/right audio channel
-            #     kernel_size=self.output_kernel_size,
-            #     padding=_get_padding(self.output_kernel_size, 1),
+            # _weightnorm(
+            #     nn.Conv1d(
+            #         start_channels // 2 ** len(strides),
+            #         2,  # left/right audio channel
+            #         kernel_size=self.output_kernel_size,
+            #         padding=_get_padding(self.output_kernel_size, 1),
+            #     )
             # ),
         )
 
-        self.waveform_amp_net = nn.Conv1d(
-            start_channels // 2 ** len(strides),
-            2 * 2,  # left/right audio channel + waveform/amplitude for each
-            kernel_size=self.output_kernel_size,
-            padding=_get_padding(self.output_kernel_size, 1),
+        amp_out_channels = 2 if do_amp_mod else 1
+        self.waveform_amp_net = _weightnorm(
+            nn.Conv1d(
+                start_channels // 2 ** len(strides),
+                2 * amp_out_channels,  # left/right audio channel + waveform/amplitude or just waveform, depending on configuration
+                kernel_size=self.output_kernel_size,
+                padding=_get_padding(self.output_kernel_size, 1),
+            )
         )
 
         self.noise_net = (
@@ -276,12 +319,15 @@ class Decoder(nn.Module):
         x_hat = self.net(x)
 
         waveform_amp = self.waveform_amp_net(x_hat)
-        waveform, amp_mod = torch.split(
-            waveform_amp,
-            waveform_amp.shape[1] // 2,
-            dim=1,
-        )
-        amp_modded = waveform * torch.sigmoid(amp_mod)
+        if self.do_amp_mod:
+            waveform, amp_mod = torch.split(
+                waveform_amp,
+                waveform_amp.shape[1] // 2,
+                dim=1,
+            )
+            amp_modded = waveform * torch.sigmoid(amp_mod)
+        else:
+            amp_modded = waveform_amp  # not actually amp moded, mind you
 
         if self.noise_net is not None:
             noise = self.noise_net(x_hat)
@@ -307,6 +353,8 @@ class VAE(pl.LightningModule):
         detect_nans: bool = False,
         initial_lr: float = 1e-4,
         final_lr: float = 1e-5,
+        do_amp_mod: bool = True,
+        do_weight_norm: bool = True,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -316,6 +364,7 @@ class VAE(pl.LightningModule):
             dilations=dilations,
             strides=strides,
             latent_size=latent_size,
+            do_weight_norm=do_weight_norm
         )
         self.decoder = Decoder(
             start_channels=capacity * 2 ** len(strides),
@@ -323,6 +372,8 @@ class VAE(pl.LightningModule):
             strides=strides[::-1],
             latent_size=latent_size,
             noise_config=noise_config,
+            do_amp_mod=do_amp_mod,
+            do_weight_norm=do_weight_norm,
         )
 
         _window_sizes = stft_window_sizes or [2048, 1024, 512, 256, 128]

@@ -3,6 +3,7 @@ from itertools import chain
 import torch
 from attrs import frozen
 from torch import nn, Tensor, fft
+from torch.nn.utils import weight_norm
 from einops import rearrange
 
 
@@ -11,6 +12,7 @@ class NoiseConfig:
     strides: list[int]
     latent_size: int
     n_filters: int
+    do_weight_norm: bool = True
 
 
 class Noise(nn.Module):
@@ -20,40 +22,50 @@ class Noise(nn.Module):
         strides: list[int],
         latent_size: int,
         n_filters: int,
+        do_weight_norm: bool,
     ):
         super().__init__()
         assert all(s  % 2 == 0 for s in strides), f"all strides should be even, got {strides}"
         assert len(strides) >= 2, f"at least length 2 strides required, got {strides}"
 
+        def _weightnorm(m: nn.Module) -> nn.Module:
+            return m if not do_weight_norm else weight_norm(m)
+
         self.n_filters = n_filters
         self.net = nn.Sequential(
             nn.LeakyReLU(),
-            nn.Conv1d(
-                in_channels,
-                latent_size,
-                kernel_size=2 * strides[0],
-                padding=strides[0] // 2,
-                stride=strides[0],
+            _weightnorm(
+                nn.Conv1d(
+                    in_channels,
+                    latent_size,
+                    kernel_size=2 * strides[0],
+                    padding=strides[0] // 2,
+                    stride=strides[0],
+                )
             ),
             *chain.from_iterable(
                 (
                     nn.LeakyReLU(),
-                    nn.Conv1d(
-                        latent_size,
-                        latent_size,
-                        kernel_size=2 * stride,
-                        padding=stride // 2,
-                        stride=stride,
+                    _weightnorm(
+                        nn.Conv1d(
+                            latent_size,
+                            latent_size,
+                            kernel_size=2 * stride,
+                            padding=stride // 2,
+                            stride=stride,
+                        )
                     )
                 )
                 for stride in strides[1:-1]
             ),
-            nn.Conv1d(
-                latent_size,
-                n_filters * 2,  # left/right channels
-                kernel_size=2 * strides[-1],
-                padding=strides[-1] // 2,
-                stride=strides[-1],
+            _weightnorm(
+                nn.Conv1d(
+                    latent_size,
+                    n_filters * 2,  # left/right channels
+                    kernel_size=2 * strides[-1],
+                    padding=strides[-1] // 2,
+                    stride=strides[-1],
+                )
             ),
         )
 
