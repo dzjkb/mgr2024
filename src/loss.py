@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Iterable, cast
 
 import torch
 from einops import rearrange
@@ -39,17 +39,32 @@ class MultiScaleSTFTLoss(nn.Module):
             logy = torch.log(ys + self.eps)
 
             # TODO: different combinations of these distances?
-            lin_distance = self._l2_relative_distance(xs, ys)
-            log_distance = self._l1_distance(logx, logy)
+            lin_distance = _l2_relative_distance(xs, ys)
+            log_distance = _l1_distance(logx, logy)
 
             loss += lin_distance + log_distance
 
         return loss
 
-    @staticmethod
-    def _l1_distance(x: Tensor, y: Tensor) -> Tensor:
-        return (x - y).abs().mean()
 
-    @staticmethod
-    def _l2_relative_distance(x: Tensor, y: Tensor, eps: float = 1e-7) -> Tensor:
-        return (torch.pow(x - y, 2).mean() + eps) / (torch.pow(y, 2).mean() + eps)
+def _l2_relative_distance(x: Tensor, y: Tensor, eps: float = 1e-7) -> Tensor:
+    return (torch.pow(x - y, 2).mean() + eps) / (torch.pow(y, 2).mean() + eps)
+
+
+def _l1_distance(x: Tensor, y: Tensor) -> Tensor:
+    return (x - y).abs().mean()
+
+
+def feature_matching_loss(real_fmaps: Tensor, fake_fmaps: Tensor) -> Tensor:
+    return cast(
+        Tensor,
+        sum(
+            [_l1_distance(real, fake) for real, fake in zip(real_fmaps, fake_fmaps)]
+        ) / len(real_fmaps),
+    )
+
+
+def hinge_gan_losses(score_real:Tensor, score_fake: Tensor) -> tuple[Tensor, Tensor]:
+    discriminator_loss = (torch.relu(cast(Tensor, 1 - score_real)) + torch.relu(cast(Tensor, 1 + score_fake))).mean()
+    generator_loss = -score_fake.mean()
+    return discriminator_loss, generator_loss

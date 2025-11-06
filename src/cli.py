@@ -27,7 +27,7 @@ def parse_hydra_config(root_configs_dir: str, path: str) -> dict[str, Any]:
 
 
 @click.group(context_settings={"auto_envvar_prefix": "JPMGR"})
-def jpmgr():
+def jpmgr() -> None:
     pass
 
 

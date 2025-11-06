@@ -4,8 +4,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from matplotlib.figure import Figure
 
-def draw_histogram(values: npt.NDArray[np.float32]) -> plt.Figure:
+
+def draw_histogram(values: npt.NDArray[np.float32]) -> Figure:
     sns.set_theme(palette="flare")
     fig, ax = plt.subplots(1, 1)
     sns.histplot(

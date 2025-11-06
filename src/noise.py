@@ -3,7 +3,7 @@ from itertools import chain
 import torch
 from attrs import frozen
 from torch import nn, Tensor, fft
-from torch.nn.utils import weight_norm
+from torch.nn.utils import weight_norm  # type: ignore[attr-defined]
 from einops import rearrange
 
 
@@ -75,7 +75,7 @@ class Noise(nn.Module):
     
     @staticmethod
     def _scale_sigmoid(x: Tensor) -> Tensor:
-        return 2 * torch.sigmoid(x - 5) ** 2.3 + 1e-7
+        return 2 * torch.sigmoid(x.sub_(5)) ** 2.3 + 1e-7
     
     @staticmethod
     def _impulse_response(magnitudes: Tensor, frame_size: int) -> Tensor:
@@ -109,6 +109,6 @@ class Noise(nn.Module):
         # the shape being (batch_size, n_frames, channels, frame_size)
         # each frame then gets convolved, preserving the shape, after which frames are concatenated to give the final
         # audio signal
-        white_noise = torch.rand_like(irs) * 2 - 1  
+        white_noise = torch.rand_like(irs).mul_(2).sub_(1)
         filtered_noise = self._convolve(white_noise, irs)
         return rearrange(filtered_noise, "b n_frames c frame_size -> b c (n_frames frame_size)")

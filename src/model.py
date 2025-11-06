@@ -1,19 +1,21 @@
 from math import floor, ceil
+from typing import cast, Mapping, Any
 
 from attrs import frozen, asdict
 
-import matplotlib.pyplot as plt
-import seaborn as sns
+# import matplotlib.pyplot as plt
+# import seaborn as sns
 import pytorch_lightning as pl
 import torch
 import torch.autograd
 from einops import rearrange, reduce
 from torch import optim, nn, Tensor
-from torch.nn.utils import weight_norm
+from torch.nn.utils import weight_norm  # type: ignore[attr-defined]
 
-from .loss import MultiScaleSTFTLoss
-from .plots import draw_histogram
+from .loss import MultiScaleSTFTLoss, feature_matching_loss, hinge_gan_losses
+# from .plots import draw_histogram
 from .noise import Noise, NoiseConfig
+from .discriminators import Discriminator  # type: ignore[attr-defined]
 
 SAMPLING_RATE = 48000
 
@@ -60,9 +62,12 @@ class ModelConfig:
     strides: list[int]
     latent_loss_weight: float = 0.5
     reconstruction_loss_weight: float = 1.0
+    adversarial_loss_weight: float = 1.0
+    feature_loss_weight: float = 1.0
     adam_betas: tuple[float, float] = (0.5, 0.9)
     monitor_grad_norm: bool = False
     detect_nans: bool = False
+    discriminator_lr: float = 1e-4
     initial_lr: float = 1e-4
     final_lr: float = 1e-5
     do_amp_mod: bool = True
@@ -169,7 +174,7 @@ class Encoder(nn.Module):
         self.latent_size = latent_size
 
         encoder_blocks = [
-            _EncoderBlock(start_channels * 2**i, block_dilations, stride)
+            _EncoderBlock(start_channels * 2**i, block_dilations, stride, do_weight_norm)
             for i, (block_dilations, stride) in enumerate(zip(dilations, strides))
         ]
 
@@ -197,11 +202,21 @@ class Encoder(nn.Module):
             ),
         )
 
+        self.register_buffer("freeze_weights", torch.tensor(0))
+
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         encoded = self.net(x)
         mean = encoded[:, : self.latent_size, :]
         logvar = encoded[:, self.latent_size :, :]
+
+        if self.freeze_weights:  # type: ignore[has-type]
+            mean = mean.detach()
+            logvar = logvar.detach()
+
         return mean, logvar
+
+    def freeze(self, value: bool) -> None:
+        self.freeze_weights = torch.tensor(int(value), device=self.freeze_weights.device)  # type: ignore[has-type]
 
 
 # ================================== DECODER =============================================
@@ -347,14 +362,18 @@ class VAE(pl.LightningModule):
         stft_window_sizes: list[int] | None = None,
         latent_loss_weight: float = 0.5,
         reconstruction_loss_weight: float = 1.0,
+        adversarial_loss_weight: float = 1.0,
+        feature_loss_weight: float = 1.0,
         adam_betas: tuple[float, float] = (0.5, 0.9),
-        lr_decay_steps: int = 10000,
+        lr_decay_steps: int = 500000,
         monitor_grad_norm: bool = False,
         detect_nans: bool = False,
+        discriminator_lr: float = 1e-4,
         initial_lr: float = 1e-4,
         final_lr: float = 1e-5,
         do_amp_mod: bool = True,
         do_weight_norm: bool = True,
+        encoder_training_len: int = 500000,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -376,15 +395,20 @@ class VAE(pl.LightningModule):
             do_weight_norm=do_weight_norm,
         )
 
+        self.discriminator = Discriminator(n_channels=2)
+
         _window_sizes = stft_window_sizes or [2048, 1024, 512, 256, 128]
         self.reconstruction_loss = MultiScaleSTFTLoss(_window_sizes)
 
         self.latent_loss_weight = latent_loss_weight
         self.reconstruction_loss_weight = reconstruction_loss_weight
+        self.adversarial_loss_weight = adversarial_loss_weight
+        self.feature_loss_weight = feature_loss_weight
         self.betas = adam_betas
         self.lr_decay_steps = lr_decay_steps
         self.monitor_grad_norm = monitor_grad_norm
         self.detect_nans = detect_nans
+        self.discriminator_lr = discriminator_lr
         self.initial_lr = initial_lr
         self.final_lr = final_lr
 
@@ -394,6 +418,9 @@ class VAE(pl.LightningModule):
             "original": [],
         }
         self.validation_epoch = 0
+        self.discrimination_phase = False
+
+        self.automatic_optimization = False  # PL doesn't support discriminator learning out of the box
 
     def _reparametrize(self, mean: Tensor, logvar: Tensor) -> Tensor:
         std = torch.exp(0.5 * logvar)  # type: ignore
@@ -405,6 +432,30 @@ class VAE(pl.LightningModule):
     def _latent_loss(mean: Tensor, logvar: Tensor) -> Tensor:
         # in the future - if normalizing flows add `log_det`
         return (mean.pow(2) + torch.exp(logvar) - logvar - 1).sum(1).mean()
+
+    def _discrimination(self, x: Tensor, x_hat: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        all_discriminators_real_feature_maps = self.discriminator(x)
+        all_discriminators_fake_feature_maps = self.discriminator(x_hat)
+        n_discriminators = len(all_discriminators_real_feature_maps)
+
+        disc_losses, gen_losses = zip(*[
+            hinge_gan_losses(disc_real[-1], disc_fake[-1])
+            for disc_real, disc_fake in zip(all_discriminators_real_feature_maps, all_discriminators_fake_feature_maps)
+        ])
+
+        feature_loss = cast(
+            Tensor,
+            sum(
+                [
+                    feature_matching_loss(disc_real[1:-1], disc_fake[1:-1])
+                    for disc_real, disc_fake in zip(all_discriminators_real_feature_maps, all_discriminators_fake_feature_maps)
+                ]
+            ) / n_discriminators,
+        )
+        gen_loss = cast(Tensor, sum(gen_losses))
+        disc_loss = cast(Tensor, sum(disc_losses))
+
+        return gen_loss, disc_loss, feature_loss
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor, dict[str, Tensor]]:
         mean, logvar = self.encoder(x)
@@ -419,15 +470,44 @@ class VAE(pl.LightningModule):
             self.latent_loss_weight * losses_dict["latent_loss"]
             + self.reconstruction_loss_weight * losses_dict["reconstruction_loss"]
         )
+
+        if self.discrimination_phase:
+            adv_loss, disc_loss, feature_loss = self._discrimination(x, x_hat)
+            losses_dict.update({
+                "adversarial_loss": adv_loss,
+                "feature_matching_loss": feature_loss,
+                "discriminator_loss": disc_loss,
+            })
+            total_loss += (
+                self.adversarial_loss_weight * losses_dict["adversarial_loss"]
+                + self.feature_loss_weight * losses_dict["feature_matching_loss"]
+            )
+
         return x_hat, z, total_loss, losses_dict
 
-    def training_step(self, batch: Tensor, batch_idx: int) -> Tensor:
-        _, _, loss, losses_dict = self.forward(batch)
-        self.log("loss/train_loss", loss, on_step=True, on_epoch=True)
+    def training_step(self, batch: Tensor, batch_idx: int) -> None:
+        self.encoder.freeze(self.discrimination_phase)
+        gen_opt, disc_opt = self.optimizers()  # type: ignore[attr-defined]
+        _, _, gen_loss, losses_dict = self.forward(batch)
+
+        self.log("loss/train_loss", gen_loss, on_step=True, on_epoch=True)
         for loss_key, value_tensor in losses_dict.items():
             self.log(f"loss/{loss_key}", value_tensor, on_step=True, on_epoch=True)
         self.log("latent_loss_weight", self.latent_loss_weight)
-        return loss
+
+        if self._update_discriminator(batch_idx):
+            disc_opt.zero_grad()
+            losses_dict["discriminator_loss"].backward()
+            disc_opt.step()
+            pass
+        else:
+            gen_opt.zero_grad()
+            gen_loss.backward()
+            gen_opt.step()
+
+    def _update_discriminator(self, batch_idx: int) -> bool:
+        update_discriminator_every = 4
+        return (batch_idx % update_discriminator_every == 0) and self.discrimination_phase
 
     def validation_step(self, batch: Tensor, batch_idx: int) -> None:
         reconstructed_audio, z, loss, losses_dict = self.forward(batch)
@@ -443,7 +523,7 @@ class VAE(pl.LightningModule):
     def _mono_concatenate_batch(audio: Tensor) -> Tensor:
         assert len(audio.shape) == 3, f"got unexpected audio shape: {audio.shape}"
         mono_audio: Tensor = reduce(audio, "b c l -> b l", "mean")
-        audio_concatenated: Tensor = rearrange(mono_audio, "b l -> (b l)").cpu()
+        audio_concatenated: Tensor = cast(Tensor, rearrange(mono_audio, "b l -> (b l)")).cpu()
         return audio_concatenated
 
     def on_validation_epoch_end(self) -> None:
@@ -491,11 +571,11 @@ class VAE(pl.LightningModule):
         validation_embeddings = self.validation_outputs["latent"][0]
         embeddings_concatenated: Tensor = rearrange(validation_embeddings, "b d l -> (b l) d")
         assert len(validation_embeddings.shape) == 3, f"got unexpected embedding shape: {validation_embeddings.shape}"
-        self.logger.experiment.add_embedding(
+        self.logger.experiment.add_embedding(  # type: ignore
             embeddings_concatenated.cpu().numpy(),
             tag="latent space",
             global_step=self.validation_epoch,
-        )  # type: ignore
+        )
 
         self.validation_outputs["audio"] = []
         self.validation_outputs["latent"] = []
@@ -503,19 +583,25 @@ class VAE(pl.LightningModule):
         self.validation_epoch += 1
 
         if self.detect_nans:
-            torch.autograd.set_detect_anomaly(True)
+            torch.autograd.set_detect_anomaly(True)  # type: ignore[attr-defined]
 
     def configure_optimizers(self) -> optim.Optimizer:
-        optimizer = optim.Adam(self.parameters(), lr=self.initial_lr, betas=self.betas)
+        disc_optimizer = optim.Adam(self.discriminator.parameters(), lr=self.discriminator_lr, betas=self.betas)
+        optimizer = optim.Adam([*self.encoder.parameters(), *self.decoder.parameters()], lr=self.initial_lr, betas=self.betas)
         lr_schedule = optim.lr_scheduler.LinearLR(
             optimizer, 1.0, self.final_lr / self.initial_lr, self.lr_decay_steps
         )
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {"scheduler": lr_schedule},
-        }
+        return (  # type: ignore
+            {
+                "optimizer": optimizer,
+                "lr_scheduler": {"scheduler": lr_schedule},
+            },
+            {
+                "optimizer": disc_optimizer,
+            }
+        )
 
-    def on_train_batch_end(self, x_hat: Tensor, batch: Tensor, batch_idx: int) -> None:
+    def on_train_batch_end(self, x_hat: Tensor | Mapping[str, Any] | None, batch: Tensor, batch_idx: int) -> None:
         if self.monitor_grad_norm:
             grad_norm = sum(
                 p.grad.data.norm(2).item() ** 2
