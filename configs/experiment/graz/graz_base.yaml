@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-  - override /callbacks: betawarmup50000
+  - override /callbacks: graz_v0
   - override /model: medium_capacity
   - override /dataset: sr48000_3s
 
@@ -12,5 +12,5 @@ train_dataset_path: data/piano/graz_train
 val_dataset_path: data/piano/graz_val
 log_dir: logs/graz
 experiment_name: graz
-epochs: 300
+epochs: 500
 batch_size: 2

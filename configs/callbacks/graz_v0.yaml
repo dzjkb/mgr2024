@@ -1,0 +1,4 @@
+  initial_latent_weight: 0.00001
+  target_latent_weight: 0.001
+  latent_weight_warmup_length: 50000
+  encoder_training_len: 120000

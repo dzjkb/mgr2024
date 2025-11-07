@@ -11,7 +11,8 @@ from torch.utils import data
 from tqdm import tqdm
 from toolz import compose_left
 
-# TODO
+from .augmentations import random_phase_mangle
+
 TransformType: TypeAlias = Fn[[torch.Tensor], torch.Tensor]
 
 
@@ -23,6 +24,20 @@ def _random_crop(length: int) -> TransformType:
     def _transform_f(x: torch.Tensor) -> torch.Tensor:
         cut_point = random.randint(0, x.shape[-1] - length)
         return x[..., cut_point : cut_point + length]
+
+    return _transform_f
+
+
+def _phase_mangle(sr: int) -> TransformType:
+    def _transform_f(x: torch.Tensor) -> torch.Tensor:
+        return random_phase_mangle(x, 20, 2000, 0.99, sr)
+
+    return _transform_f
+
+
+def _dequantize(bits: int) -> TransformType:
+    def _transform_f(x: torch.Tensor) -> torch.Tensor:
+        return x + torch.rand_like(x) / 2**bits
 
     return _transform_f
 
@@ -51,6 +66,7 @@ def _make_stereo() -> TransformType:
 class DatasetConfig:
     expected_sample_rate: int
     zero_pad_cut: int | None
+    augment: bool
 
 
 class AudioDataset(data.Dataset[torch.Tensor]):
@@ -60,6 +76,7 @@ class AudioDataset(data.Dataset[torch.Tensor]):
         # transforms: list[TransformType],
         expected_sample_rate: int = 48000,
         zero_pad_cut: int | None = None,
+        augment: bool = False,
     ) -> None:
         self.dataset_dir = dataset_dir
         self.name = dataset_dir.name
@@ -70,10 +87,16 @@ class AudioDataset(data.Dataset[torch.Tensor]):
         for idx in tqdm(range(len(self.files)), desc=f"validating the {dataset_dir.name} dataset"):
             assert self._validate(*self._load_file(idx)), f"invalid file: {self.files[idx]}"
 
+        augmentations = [] if not augment else [
+            _phase_mangle(expected_sample_rate),
+            _dequantize(16),
+        ]
+
         self.transforms = compose_left(
             *[
                 _zero_pad_cut(zero_pad_cut) if zero_pad_cut is not None else _id_transform,
                 _make_stereo(),  # some of the wavs are mono
+                *augmentations
             ]
         )
 

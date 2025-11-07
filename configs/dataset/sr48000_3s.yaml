@@ -1,2 +1,3 @@
 zero_pad_cut: 144000  # 3 * 48000
 expected_sample_rate: 48000
+augment: false
