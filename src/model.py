@@ -16,6 +16,7 @@ from .loss import MultiScaleSTFTLoss, feature_matching_loss, hinge_gan_losses
 # from .plots import draw_histogram
 from .noise import Noise, NoiseConfig
 from .discriminators import Discriminator  # type: ignore[attr-defined]
+from .activations import ACTIVATIONS
 
 SAMPLING_RATE = 48000
 
@@ -42,6 +43,10 @@ def _get_strided_padding(stride: int) -> tuple[int, int]:
 
     half = stride / 2
     return floor(half), ceil(half)
+
+
+def _instantiate_activation(name: str, channels: int) -> nn.Module:
+    return ACTIVATIONS[name](channels)
 
 
 class ZeroPad1d(nn.Module):
@@ -72,6 +77,7 @@ class ModelConfig:
     final_lr: float = 1e-5
     do_amp_mod: bool = True
     do_weight_norm: bool = True
+    activation: str = "relu"
 
     def __post_init__(self) -> None:
         assert len(self.dilations) == len(
@@ -87,6 +93,7 @@ class _ResidualDilatedUnit(nn.Module):
         channels: int,
         dilation: int,
         do_weight_norm: bool,
+        activation: str,
     ):
         super().__init__()
 
@@ -94,7 +101,7 @@ class _ResidualDilatedUnit(nn.Module):
             return m if not do_weight_norm else weight_norm(m)
 
         self.net = nn.Sequential(
-            nn.LeakyReLU(),
+            _instantiate_activation(activation, channels),
             _weightnorm(
                 nn.Conv1d(
                     channels,
@@ -104,7 +111,7 @@ class _ResidualDilatedUnit(nn.Module):
                     padding=_get_padding(self.kernel_size, dilation),
                 )
             ),
-            nn.LeakyReLU(),
+            _instantiate_activation(activation, channels),
             _weightnorm(nn.Conv1d(channels, channels, kernel_size=1)),
         )
 
@@ -129,6 +136,7 @@ class _EncoderBlock(nn.Module):
         dilations: list[int],
         stride: int,
         do_weight_norm: bool,
+        activation: str,
     ):
         super().__init__()
         # assert stride % 2 == 0, f"stride should be even, got {stride}"
@@ -137,8 +145,11 @@ class _EncoderBlock(nn.Module):
             return m if not do_weight_norm else weight_norm(m)
 
         self.net = nn.Sequential(
-            *[_ResidualDilatedUnit(in_channels, dilation=d, do_weight_norm=do_weight_norm) for d in dilations],
-            nn.LeakyReLU(),
+            *[
+                _ResidualDilatedUnit(in_channels, dilation=d, do_weight_norm=do_weight_norm, activation=activation)
+                for d in dilations
+            ],
+            _instantiate_activation(activation, in_channels),
             # asymmetrical padding might be breaking something, try sym
             ZeroPad1d(*_get_strided_padding(stride)),
             _weightnorm(
@@ -168,13 +179,14 @@ class Encoder(nn.Module):
         strides: list[int],
         latent_size: int,
         do_weight_norm: bool,
+        activation: str,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
         self.latent_size = latent_size
 
         encoder_blocks = [
-            _EncoderBlock(start_channels * 2**i, block_dilations, stride, do_weight_norm)
+            _EncoderBlock(start_channels * 2**i, block_dilations, stride, do_weight_norm, activation=activation)
             for i, (block_dilations, stride) in enumerate(zip(dilations, strides))
         ]
 
@@ -191,7 +203,7 @@ class Encoder(nn.Module):
                 )
             ),
             *encoder_blocks,
-            nn.LeakyReLU(),
+            _instantiate_activation(activation, start_channels * 2 ** len(strides)),
             _weightnorm(
                 nn.Conv1d(
                     start_channels * 2 ** len(strides),
@@ -236,6 +248,7 @@ class _DecoderBlock(nn.Module):
         dilations: list[int],
         stride: int,
         do_weight_norm: bool,
+        activation: str,
     ):
         super().__init__()
         # again, for simplicity - this will always be the case
@@ -245,7 +258,7 @@ class _DecoderBlock(nn.Module):
             return m if not do_weight_norm else weight_norm(m)
 
         self.net = nn.Sequential(
-            nn.LeakyReLU(),
+            _instantiate_activation(activation, in_channels),
             _weightnorm(
                 nn.ConvTranspose1d(
                     in_channels,
@@ -256,7 +269,7 @@ class _DecoderBlock(nn.Module):
                     output_padding=stride % 2,
                 )
             ),
-            *[_ResidualDilatedUnit(in_channels // 2, dilation=d, do_weight_norm=do_weight_norm) for d in dilations],
+            *[_ResidualDilatedUnit(in_channels // 2, dilation=d, do_weight_norm=do_weight_norm, activation=activation) for d in dilations],
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -276,6 +289,7 @@ class Decoder(nn.Module):
         noise_config: NoiseConfig | None,
         do_amp_mod: bool,
         do_weight_norm: bool,
+        activation: str,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -283,7 +297,7 @@ class Decoder(nn.Module):
         self.do_amp_mod = do_amp_mod
 
         decoder_blocks = [
-            _DecoderBlock(start_channels // 2**i, block_dilations, stride, do_weight_norm)
+            _DecoderBlock(start_channels // 2**i, block_dilations, stride, do_weight_norm, activation=activation)
             for i, (block_dilations, stride) in enumerate(zip(dilations, strides))
         ]
 
@@ -300,15 +314,7 @@ class Decoder(nn.Module):
                 )
             ),
             *decoder_blocks,
-            nn.LeakyReLU(),
-            # _weightnorm(
-            #     nn.Conv1d(
-            #         start_channels // 2 ** len(strides),
-            #         2,  # left/right audio channel
-            #         kernel_size=self.output_kernel_size,
-            #         padding=_get_padding(self.output_kernel_size, 1),
-            #     )
-            # ),
+            _instantiate_activation(activation, start_channels // 2 ** len(strides)),
         )
 
         amp_out_channels = 2 if do_amp_mod else 1
@@ -373,7 +379,7 @@ class VAE(pl.LightningModule):
         final_lr: float = 1e-5,
         do_amp_mod: bool = True,
         do_weight_norm: bool = True,
-        encoder_training_len: int = 500000,
+        activation: str = "relu",
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -383,7 +389,8 @@ class VAE(pl.LightningModule):
             dilations=dilations,
             strides=strides,
             latent_size=latent_size,
-            do_weight_norm=do_weight_norm
+            do_weight_norm=do_weight_norm,
+            activation=activation,
         )
         self.decoder = Decoder(
             start_channels=capacity * 2 ** len(strides),
@@ -393,6 +400,7 @@ class VAE(pl.LightningModule):
             noise_config=noise_config,
             do_amp_mod=do_amp_mod,
             do_weight_norm=do_weight_norm,
+            activation=activation,
         )
 
         self.discriminator = Discriminator(n_channels=2)

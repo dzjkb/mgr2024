@@ -12,3 +12,4 @@ initial_lr: 0.0001
 final_lr: 0.00001
 
 feature_loss_weight: 20.0
+activation: snake
