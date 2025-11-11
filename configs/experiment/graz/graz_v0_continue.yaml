@@ -1,0 +1,12 @@
+# @package _global_
+
+defaults:
+  - graz/graz_base
+
+callbacks:
+  initial_latent_weight: 0.000001
+  target_latent_weight: 0.0001
+model:
+  activation: relu
+checkpoint_path: /home/jp/mgr2024/logs/graz/graz_2025-11-07_11-42/version_0/checkpoints/last.ckpt
+epochs: 800

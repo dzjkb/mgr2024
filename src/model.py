@@ -576,14 +576,15 @@ class VAE(pl.LightningModule):
         #     self.validation_epoch,
         # )
 
-        validation_embeddings = self.validation_outputs["latent"][0]
-        embeddings_concatenated: Tensor = rearrange(validation_embeddings, "b d l -> (b l) d")
-        assert len(validation_embeddings.shape) == 3, f"got unexpected embedding shape: {validation_embeddings.shape}"
-        self.logger.experiment.add_embedding(  # type: ignore
-            embeddings_concatenated.cpu().numpy(),
-            tag="latent space",
-            global_step=self.validation_epoch,
-        )
+        # unnecessary for now
+        # validation_embeddings = self.validation_outputs["latent"][0]
+        # embeddings_concatenated: Tensor = rearrange(validation_embeddings, "b d l -> (b l) d")
+        # assert len(validation_embeddings.shape) == 3, f"got unexpected embedding shape: {validation_embeddings.shape}"
+        # self.logger.experiment.add_embedding(  # type: ignore
+        #     embeddings_concatenated.cpu().numpy(),
+        #     tag="latent space",
+        #     global_step=self.validation_epoch,
+        # )
 
         self.validation_outputs["audio"] = []
         self.validation_outputs["latent"] = []
