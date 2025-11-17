@@ -540,8 +540,8 @@ class VAE(pl.LightningModule):
         #     self.validation_outputs,
         #     "li b c len -> (li b) c len",
         # )
-        # taking first batch for now
-        validation_audio = self.validation_outputs["audio"][0]
+        # taking second batch cuz why not
+        validation_audio = self.validation_outputs["audio"][1]
         audio_concatenated = self._mono_concatenate_batch(validation_audio)
         self.logger.experiment.add_audio(  # type: ignore
             "validation_audio",
