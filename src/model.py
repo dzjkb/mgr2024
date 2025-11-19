@@ -507,7 +507,6 @@ class VAE(pl.LightningModule):
             disc_opt.zero_grad()
             losses_dict["discriminator_loss"].backward()
             disc_opt.step()
-            pass
         else:
             gen_opt.zero_grad()
             gen_loss.backward()

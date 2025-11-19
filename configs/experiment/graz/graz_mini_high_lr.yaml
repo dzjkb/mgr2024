@@ -1,0 +1,9 @@
+# @package _global_
+
+defaults:
+  - graz/graz_mini_base
+  - override /model: medium_high_lr
+
+callbacks:
+  latent_weight_warmup_length: 8000
+  encoder_training_len: 20000

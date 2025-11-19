@@ -9,6 +9,7 @@ from hydra import compose, initialize_config_dir
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import OmegaConf
 
+from .generate import do_generate
 from .train import do_train, TrainingConfig
 from .model import SAMPLING_RATE
 
@@ -40,6 +41,21 @@ def train(config: str) -> None:
     )
 
     do_train(cfg)
+
+
+# @jpmgr.command()
+# @click.option("--checkpoint", type=click.Path())
+# @click.option("--count", type=int)
+# @click.option("--target_dir", type=click.Path())
+# @click.option("--batch_size", type=int)
+# def generate(checkpoint: str, count: int, target_dir: str, batch_size: int) -> None:
+#     assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got {checkpoint}"
+#     do_generate(
+#         checkpoint=checkpoint,
+#         count=count,
+#         target_dir=target_dir,
+#         batch_size=batch_size
+#     )
 
 
 @jpmgr.command()

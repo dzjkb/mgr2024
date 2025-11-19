@@ -2,21 +2,20 @@
 
 defaults:
   - override /callbacks: graz_v0
-  - override /model: medium_capacity
+  - override /model: medium_high_lr
   - override /dataset: sr48000_3s
 
 model:
   detect_nans: false
-  lr_decay_steps: 15000
   activation: relu
 
 callbacks:
   latent_weight_warmup_length: 5000
   encoder_training_len: 20000
 
-train_dataset_path: data/piano/graz_mini_train
-val_dataset_path: data/piano/graz_mini_val
-log_dir: logs/graz_mini
-experiment_name: graz_mini
+train_dataset_path: data/ambient/soft_channel_mini_train
+val_dataset_path: data/ambient/soft_channel_mini_val
+log_dir: logs/soft_channel_mini
+experiment_name: soft_channel_mini
 epochs: 1000
 batch_size: 3
