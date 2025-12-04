@@ -2,7 +2,7 @@
 
 defaults:
   - override /callbacks: graz_v0
-  - override /model: medium_capacity
+  - override /model: medium_capacity_3s_strides
   - override /dataset: sr48000_3s
 
 model:
@@ -18,5 +18,5 @@ train_dataset_path: data/piano/graz_mini_train
 val_dataset_path: data/piano/graz_mini_val
 log_dir: logs/graz_mini
 experiment_name: graz_mini
-epochs: 1000
+epochs: 500
 batch_size: 3

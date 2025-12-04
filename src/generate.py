@@ -23,7 +23,7 @@ def do_generate(checkpoint: str, count: int, target_dir: str, batch_size: int = 
     generated_audio_list = []
     with torch.no_grad():
         z = _random_z(count)
-        for z_batch in _iterate_batched(z):
+        for z_batch in _iterate_batched(z, batch_size=batch_size):
             generated = model.decoder(z_batch)  # TODO: gpu n shit?
             generated_audio_list.append(generated)
     

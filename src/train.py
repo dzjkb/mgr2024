@@ -46,12 +46,12 @@ def do_train(cfg: TrainingConfig) -> None:
         AudioDataset(Path(cfg.train_dataset_path), **asdict(cfg.dataset)),
         batch_size=cfg.batch_size,
         shuffle=True,
-        num_workers=8,
+        num_workers=4,
     )
     val_set = DataLoader(
         AudioDataset(Path(cfg.val_dataset_path), **asdict(cfg.dataset)),
         batch_size=cfg.batch_size,
-        num_workers=8,
+        num_workers=4,
     )
 
     logger = TensorBoardLogger(save_dir=cfg.log_dir, name=_run_name(cfg.experiment_name))
@@ -64,8 +64,8 @@ def do_train(cfg: TrainingConfig) -> None:
         callbacks=init_callbacks(cfg.callbacks),
         profiler="simple",
         enable_progress_bar=True,
-        # check_val_every_n_epoch=10,
-        log_every_n_steps=25,
+        check_val_every_n_epoch=100,
+        # log_every_n_steps=min(25, len(train_set) // cfg.batch_size),
     )
     checkpoint_kwarg: dict[str, str] = (
         {"ckpt_path": cfg.checkpoint_path} if cfg.checkpoint_path is not None else {}

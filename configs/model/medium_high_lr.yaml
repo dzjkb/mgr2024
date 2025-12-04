@@ -7,9 +7,10 @@ dilations:
   - [1, 3, 9]
 strides: [2, 4, 5, 8]
 lr_decay_steps: 10000
-discriminator_lr: 0.001
-initial_lr: 0.01
-final_lr: 0.001
+discriminator_lr: 0.0001
+initial_lr: 0.001
+final_lr: 0.0001
 
 feature_loss_weight: 20.0
 activation: snake
+n_bands: 16

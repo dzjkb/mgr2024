@@ -17,6 +17,7 @@ from .loss import MultiScaleSTFTLoss, feature_matching_loss, hinge_gan_losses
 from .noise import Noise, NoiseConfig
 from .discriminators import Discriminator  # type: ignore[attr-defined]
 from .activations import ACTIVATIONS
+from .pqmf import PQMF
 
 SAMPLING_RATE = 48000
 
@@ -78,6 +79,7 @@ class ModelConfig:
     do_amp_mod: bool = True
     do_weight_norm: bool = True
     activation: str = "relu"
+    n_bands: int = 16
 
     def __post_init__(self) -> None:
         assert len(self.dilations) == len(
@@ -180,6 +182,7 @@ class Encoder(nn.Module):
         latent_size: int,
         do_weight_norm: bool,
         activation: str,
+        n_bands: int,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -196,7 +199,7 @@ class Encoder(nn.Module):
         self.net = nn.Sequential(
             _weightnorm(
                 nn.Conv1d(
-                    2,  # left/right audio channel
+                    n_bands * 2,  # left/right audio channel
                     start_channels,
                     kernel_size=self.input_kernel_size,
                     padding=_get_padding(self.input_kernel_size, 1),
@@ -290,6 +293,7 @@ class Decoder(nn.Module):
         do_amp_mod: bool,
         do_weight_norm: bool,
         activation: str,
+        n_bands: int,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -321,7 +325,7 @@ class Decoder(nn.Module):
         self.waveform_amp_net = _weightnorm(
             nn.Conv1d(
                 start_channels // 2 ** len(strides),
-                2 * amp_out_channels,  # left/right audio channel + waveform/amplitude or just waveform, depending on configuration
+                n_bands * 2 * amp_out_channels,  # left/right audio channel + waveform/amplitude or just waveform, depending on configuration
                 kernel_size=self.output_kernel_size,
                 padding=_get_padding(self.output_kernel_size, 1),
             )
@@ -330,6 +334,7 @@ class Decoder(nn.Module):
         self.noise_net = (
             Noise(
                 in_channels=start_channels // 2 ** len(strides),
+                n_bands=n_bands,
                 **asdict(noise_config),
             )
             if noise_config is not None
@@ -380,6 +385,7 @@ class VAE(pl.LightningModule):
         do_amp_mod: bool = True,
         do_weight_norm: bool = True,
         activation: str = "relu",
+        n_bands: int = 16,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -391,6 +397,7 @@ class VAE(pl.LightningModule):
             latent_size=latent_size,
             do_weight_norm=do_weight_norm,
             activation=activation,
+            n_bands=n_bands,
         )
         self.decoder = Decoder(
             start_channels=capacity * 2 ** len(strides),
@@ -401,9 +408,11 @@ class VAE(pl.LightningModule):
             do_amp_mod=do_amp_mod,
             do_weight_norm=do_weight_norm,
             activation=activation,
+            n_bands=n_bands,
         )
+        self.pqmf = PQMF(100, n_bands, n_channels=2)
 
-        self.discriminator = Discriminator(n_channels=2)
+        self.discriminator = Discriminator(n_channels=2, sample_rate=SAMPLING_RATE)
 
         _window_sizes = stft_window_sizes or [2048, 1024, 512, 256, 128]
         self.reconstruction_loss = MultiScaleSTFTLoss(_window_sizes)
@@ -436,6 +445,16 @@ class VAE(pl.LightningModule):
         z = eps.mul(std).add_(mean)
         return z
 
+    def _split_bands(self, x: Tensor) -> Tensor:
+        x_rearranged = cast(Tensor, rearrange(x, "b (c one) t -> (b c) one t", one=1))
+        multiband_x = self.pqmf(x_rearranged)
+        return cast(Tensor, rearrange(multiband_x, "(b chs) bands t -> b (chs bands) t", b=x.shape[0]))
+
+    def _join_bands(self, multiband_x: Tensor) -> Tensor:
+        x_rearranged = cast(Tensor, rearrange(multiband_x, "b (chs c) t -> (b chs) c t", chs=2))
+        single_band_x = self.pqmf.inverse(x_rearranged)
+        return cast(Tensor, rearrange(single_band_x, "(b chs) c t -> b (chs c) t", chs=2))
+
     @staticmethod
     def _latent_loss(mean: Tensor, logvar: Tensor) -> Tensor:
         # in the future - if normalizing flows add `log_det`
@@ -466,9 +485,9 @@ class VAE(pl.LightningModule):
         return gen_loss, disc_loss, feature_loss
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor, dict[str, Tensor]]:
-        mean, logvar = self.encoder(x)
+        mean, logvar = self.encoder(self._split_bands(x))
         z = self._reparametrize(mean, logvar)
-        x_hat = self.decoder(z)
+        x_hat = self._join_bands(self.decoder(z))
 
         losses_dict = {
             "latent_loss": self._latent_loss(mean, logvar),
@@ -498,19 +517,21 @@ class VAE(pl.LightningModule):
         gen_opt, disc_opt = self.optimizers()  # type: ignore[attr-defined]
         _, _, gen_loss, losses_dict = self.forward(batch)
 
-        self.log("loss/train_loss", gen_loss, on_step=True, on_epoch=True)
+        self.log("loss/train_loss", gen_loss, on_step=False, on_epoch=True)
         for loss_key, value_tensor in losses_dict.items():
-            self.log(f"loss/{loss_key}", value_tensor, on_step=True, on_epoch=True)
-        self.log("latent_loss_weight", self.latent_loss_weight)
+            self.log(f"loss/{loss_key}", value_tensor, on_step=False, on_epoch=True)
+        self.log("latent_loss_weight", self.latent_loss_weight, on_step=False, on_epoch=True)
 
         if self._update_discriminator(batch_idx):
             disc_opt.zero_grad()
             losses_dict["discriminator_loss"].backward()
             disc_opt.step()
         else:
+            lr_schedule = self.lr_schedulers()
             gen_opt.zero_grad()
             gen_loss.backward()
             gen_opt.step()
+            lr_schedule.step()
 
     def _update_discriminator(self, batch_idx: int) -> bool:
         update_discriminator_every = 4
