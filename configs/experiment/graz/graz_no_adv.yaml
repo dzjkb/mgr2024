@@ -1,0 +1,10 @@
+# @package _global_
+
+defaults:
+  - graz/graz_base
+
+callbacks:
+  encoder_training_len: 1000000000  # too big
+
+batch_size: 8  # maxes out a 16G T4
+epochs: 1000

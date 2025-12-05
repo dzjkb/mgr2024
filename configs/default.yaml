@@ -12,3 +12,4 @@ epochs: 600
 device: cuda
 batch_size: 8
 checkpoint_path: null
+separate_run: null

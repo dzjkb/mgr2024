@@ -1,9 +1,0 @@
-# @package _global_
-
-defaults:
-  - graz/graz_base
-
-callbacks:
-  initial_latent_weight: 0.000001
-  target_latent_weight: 0.0001
-

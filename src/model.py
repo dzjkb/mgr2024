@@ -595,7 +595,7 @@ class VAE(pl.LightningModule):
             SAMPLING_RATE,
         )
         if self.validation_epoch <= 0:
-            original_audio = self.validation_outputs["original"][0]
+            original_audio = self.validation_outputs["original"][1]
             self.logger.experiment.add_audio(  # type: ignore
                 "validation_audio_original",
                 self._mono_concatenate_batch(original_audio).numpy(),

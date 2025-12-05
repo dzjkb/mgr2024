@@ -23,6 +23,7 @@ class TrainingConfig:
     batch_size: int
     device: str
     checkpoint_path: str | None
+    separate_run: bool | None
     model: ModelConfig
     callbacks: CallbacksConfig
     noise: NoiseConfig
@@ -35,9 +36,11 @@ def _log_config(cfg: TrainingConfig, path: str) -> None:
         f.write(yaml.dump(asdict(cfg)))
 
 
-def _run_name(experiment_name: str) -> str:
-    time_str = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    return f"{experiment_name}_{time_str}"
+def _get_version(path: str) -> int:
+    for part in path.split("/"):
+        if part.startswith("version_"):
+            return int(part.split("_")[1])
+    assert False, f"checkpoint {path} is specified but no `version_x` folder found"
 
 
 def do_train(cfg: TrainingConfig) -> None:
@@ -56,7 +59,10 @@ def do_train(cfg: TrainingConfig) -> None:
         num_workers=4,
     )
 
-    logger = TensorBoardLogger(save_dir=cfg.log_dir, name=_run_name(cfg.experiment_name))
+    if cfg.checkpoint_path is not None and not cfg.separate_run:
+        logger = TensorBoardLogger(save_dir=cfg.log_dir, name=cfg.experiment_name, version=_get_version(cfg.checkpoint_path))
+    else:
+        logger = TensorBoardLogger(save_dir=cfg.log_dir, name=cfg.experiment_name)
     _log_config(cfg, f"{logger.log_dir}/config.yaml")
     trainer = pl.Trainer(
         logger=logger,
@@ -67,7 +73,6 @@ def do_train(cfg: TrainingConfig) -> None:
         profiler="simple",
         enable_progress_bar=True,
         check_val_every_n_epoch=100,
-        # log_every_n_steps=min(25, len(train_set) // cfg.batch_size),
     )
     checkpoint_kwarg: dict[str, str] = (
         {"ckpt_path": cfg.checkpoint_path} if cfg.checkpoint_path is not None else {}
