@@ -2,15 +2,21 @@
 
 defaults:
   - override /callbacks: graz_v0
-  - override /model: medium_capacity
+  - override /model: medium_capacity_3s_strides
   - override /dataset: sr48000_3s
 
 model:
-  detect_nans: true
+  detect_nans: false
+  lr_decay_steps: 100000
+  activation: relu
+
+callbacks:
+  latent_weight_warmup_length: 50000
+  encoder_training_len: 97000
 
 train_dataset_path: data/piano/graz_train
 val_dataset_path: data/piano/graz_val
 log_dir: logs/graz
 experiment_name: graz
-epochs: 500
-batch_size: 2
+epochs: 600
+batch_size: 4
