@@ -1,4 +1,4 @@
-from math import floor, ceil
+from math import floor, ceil, prod
 from typing import cast, Mapping, Any
 
 from attrs import frozen, asdict
@@ -80,6 +80,7 @@ class ModelConfig:
     do_weight_norm: bool = True
     activation: str = "relu"
     n_bands: int = 16
+    fixed_length: int | None = None
 
     def __post_init__(self) -> None:
         assert len(self.dilations) == len(
@@ -183,6 +184,7 @@ class Encoder(nn.Module):
         do_weight_norm: bool,
         activation: str,
         n_bands: int,
+        fixed_length: int | None = None,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -195,6 +197,14 @@ class Encoder(nn.Module):
 
         def _weightnorm(m: nn.Module) -> nn.Module:
             return m if not do_weight_norm else weight_norm(m)
+
+        if fixed_length is not None:
+            assert round(fixed_length / prod(strides)) == fixed_length / prod(strides)
+        single_latent_reduction: list[nn.Module] = (
+            []
+            if fixed_length is None
+            else [_weightnorm(nn.Linear(fixed_length // prod(strides), 1))]
+        )
 
         self.net = nn.Sequential(
             _weightnorm(
@@ -215,6 +225,7 @@ class Encoder(nn.Module):
                     padding=_get_padding(self.output_kernel_size, 1),
                 )
             ),
+            *single_latent_reduction,
         )
 
         self.register_buffer("freeze_weights", torch.tensor(0))
@@ -294,6 +305,7 @@ class Decoder(nn.Module):
         do_weight_norm: bool,
         activation: str,
         n_bands: int,
+        fixed_length: int | None = None,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -308,7 +320,16 @@ class Decoder(nn.Module):
         def _weightnorm(m: nn.Module) -> nn.Module:
             return m if not do_weight_norm else weight_norm(m)
 
+        if fixed_length is not None:
+            assert round(fixed_length / prod(strides)) == fixed_length / prod(strides)
+        single_latent_upsampling: list[nn.Module] = (
+            []
+            if fixed_length is None
+            else [_weightnorm(nn.Linear(1, fixed_length // prod(strides)))]
+        )
+
         self.net = nn.Sequential(
+            *single_latent_upsampling,
             _weightnorm(
                 nn.Conv1d(
                     latent_size,
@@ -386,6 +407,7 @@ class VAE(pl.LightningModule):
         do_weight_norm: bool = True,
         activation: str = "relu",
         n_bands: int = 16,
+        fixed_length: int | None = None,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -398,6 +420,7 @@ class VAE(pl.LightningModule):
             do_weight_norm=do_weight_norm,
             activation=activation,
             n_bands=n_bands,
+            fixed_length=fixed_length,
         )
         self.decoder = Decoder(
             start_channels=capacity * 2 ** len(strides),
@@ -409,6 +432,7 @@ class VAE(pl.LightningModule):
             do_weight_norm=do_weight_norm,
             activation=activation,
             n_bands=n_bands,
+            fixed_length=fixed_length,
         )
         self.pqmf = PQMF(100, n_bands, n_channels=2)
 
