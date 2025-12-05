@@ -410,6 +410,7 @@ class VAE(pl.LightningModule):
         fixed_length: int | None = None,
     ):
         super().__init__()
+        self.save_hyperparameters()
         assert len(dilations) == len(strides)
 
         self.encoder = Encoder(
