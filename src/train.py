@@ -24,6 +24,7 @@ class TrainingConfig:
     device: str
     checkpoint_path: str | None
     separate_run: bool | None
+    val_every: int
     model: ModelConfig
     callbacks: CallbacksConfig
     noise: NoiseConfig
@@ -72,7 +73,7 @@ def do_train(cfg: TrainingConfig) -> None:
         callbacks=init_callbacks(cfg.callbacks),
         profiler="simple",
         enable_progress_bar=True,
-        check_val_every_n_epoch=100,
+        check_val_every_n_epoch=cfg.val_every,
     )
     checkpoint_kwarg: dict[str, str] = (
         {"ckpt_path": cfg.checkpoint_path} if cfg.checkpoint_path is not None else {}
