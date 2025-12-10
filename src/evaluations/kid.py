@@ -2,7 +2,7 @@ from typing import cast
 
 import torch
 import numpy as np
-from einops import rearrange, reduce
+from einops import reduce
 
 from .clap import get_embeddings
 from .mmd import mmd

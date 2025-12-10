@@ -43,13 +43,13 @@ priority = "primary"
 
 [[tool.poetry.source]]
 name = "pytorch"
-url = "https://download.pytorch.org/whl/cu113"
+url = "https://download.pytorch.org/whl/cu130"
 priority = "supplemental"
 
 [tool.poetry.dependencies]
-torch = { version = "^1.12.1+cu113", source = "pytorch" }
-torchvision = { version = "^0.13.1+cu113", source = "pytorch" }
-torchaudio = { version = "0.12.1+cu113", source = "pytorch" }
+torch = { version = "^2.9.0+cu130", source = "pytorch" }
+torchvision = { version = "^0.24.0+cu130", source = "pytorch" }
+torchaudio = { version = "2.9.0+cu130", source = "pytorch" }
 python = "~3.10"
 numpy = "<2"
 black = "^25.1.0"
@@ -69,3 +69,4 @@ seaborn = "^0.13.2"
 scipy = "^1.15"
 torchcodec = "^0.8.1"
 laion-clap = "^1.1.7"
+fadtk = "^1.1.0"

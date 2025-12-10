@@ -1,5 +1,6 @@
 import torch
 from laion_clap import CLAP_Module
+from fadtk import CLAPLaionModel
 
 SAMPLING_RATE = 48000  # fixed for CLAP
 
