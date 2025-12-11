@@ -13,6 +13,7 @@ class CallbacksConfig:
         None  # required if `initial_latent_loss` is not `None`
     )
     encoder_training_len: int | None = None
+    discriminator_warmup_len: int | None = None
 
 
 def init_callbacks(cfg: CallbacksConfig) -> list[pl.Callback]:
@@ -33,7 +34,7 @@ def init_callbacks(cfg: CallbacksConfig) -> list[pl.Callback]:
         )
 
     if cfg.encoder_training_len:
-        callbacks.append(EncoderTrainingPhaseCallback(duration=cfg.encoder_training_len))
+        callbacks.append(EncoderTrainingPhaseCallback(duration=cfg.encoder_training_len, disc_warmup=cfg.discriminator_warmup_len or 0))
 
     return callbacks
 
@@ -80,10 +81,12 @@ class EncoderTrainingPhaseCallback(pl.Callback):
     def __init__(
         self,
         duration: int,  # in batches
+        disc_warmup: int,
     ) -> None:
         super().__init__()
         self.state = {"training_steps": 0}
         self.duration = duration
+        self.disc_warmup = disc_warmup
 
     def on_train_batch_start(
         self,
@@ -94,6 +97,10 @@ class EncoderTrainingPhaseCallback(pl.Callback):
     ) -> None:
         if self.state["training_steps"] >= self.duration:
             pl_module.discrimination_phase = True  # type: ignore
+            if self.state["training_steps"] < self.duration + self.disc_warmup:
+                pl_module.discriminator_warmup_phase = True
+            else:
+                pl_module.discriminator_warmup_phase = False
         self.state["training_steps"] += 1
 
     def state_dict(self) -> dict[str, Any]:

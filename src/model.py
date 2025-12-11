@@ -461,6 +461,7 @@ class VAE(pl.LightningModule):
         }
         self.validation_epoch = 0
         self.discrimination_phase = False
+        self.discriminator_warmup_phase = False
 
         self.automatic_optimization = False  # PL doesn't support discriminator learning out of the box
 
@@ -547,7 +548,7 @@ class VAE(pl.LightningModule):
             self.log(f"loss/{loss_key}", value_tensor, on_step=False, on_epoch=True)
         self.log("latent_loss_weight", self.latent_loss_weight, on_step=False, on_epoch=True)
 
-        if self._update_discriminator(batch_idx):
+        if self.discriminator_warmup_phase or self._update_discriminator(batch_idx):
             disc_opt.zero_grad()
             losses_dict["discriminator_loss"].backward()
             disc_opt.step()
