@@ -47,6 +47,8 @@ def _get_version(path: str) -> int:
 def do_train(cfg: TrainingConfig) -> None:
     if cfg.model.fixed_length is not None:
         assert cfg.model.fixed_length == cfg.dataset.zero_pad_cut, f"model must be configured to work on the same length as the dataset is padded to, got model length: {cfg.model.fixed_length}, dataset length: {cfg.dataset.zero_pad_cut}"
+    assert cfg.model.mono == cfg.dataset.mono, f"both model and dataset must have the same mono setting, got model: {cfg.model.mono}, dataset: {cfg.dataset.mono}"
+
     model = VAE(noise_config=cfg.noise, **asdict(cfg.model))
     train_set = DataLoader(
         AudioDataset(Path(cfg.train_dataset_path), **asdict(cfg.dataset)),

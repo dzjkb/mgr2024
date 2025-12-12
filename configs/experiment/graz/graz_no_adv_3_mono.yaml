@@ -1,0 +1,18 @@
+# @package _global_
+
+defaults:
+  - graz/graz_base
+  - override /model: mediumhigh_capacity_3s_3dilations
+
+callbacks:
+  encoder_training_len: 1000000000  # too big
+
+dataset:
+  mono: true
+
+model:
+  mono: true
+  fixed_length: null
+
+batch_size: 8
+epochs: 2000

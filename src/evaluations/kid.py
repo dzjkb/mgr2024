@@ -6,12 +6,7 @@ from einops import reduce
 
 from .clap import get_embeddings
 from .mmd import mmd
-
-
-def _make_mono(audio: torch.Tensor) -> torch.Tensor:
-    assert len(audio.shape) == 3, f"got unexpected audio shape: {audio.shape}"
-    mono_audio: torch.Tensor = cast(torch.Tensor, reduce(audio, "b c l -> b l", "mean")).cpu()
-    return mono_audio
+from .utils import make_mono
 
 
 def kid(set_x: torch.Tensor, set_y: torch.Tensor, batch_size: int = 5000) -> float:
@@ -22,8 +17,8 @@ def kid(set_x: torch.Tensor, set_y: torch.Tensor, batch_size: int = 5000) -> flo
     """
 
     with torch.no_grad():
-        x_mono = _make_mono(set_x)
-        y_mono = _make_mono(set_y)
+        x_mono = make_mono(set_x) if len(set_x.shape) == 3 else set_x
+        y_mono = make_mono(set_y) if len(set_y.shape) == 3 else set_y
         
         mmd_distances = []
 

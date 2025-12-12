@@ -12,6 +12,7 @@ from tqdm import tqdm
 from toolz import compose_left
 
 from .augmentations import random_phase_mangle
+from .evaluations.utils import make_mono
 
 TransformType: TypeAlias = Fn[[torch.Tensor], torch.Tensor]
 
@@ -62,11 +63,19 @@ def _make_stereo() -> TransformType:
     return _transform_f
 
 
+def _make_mono() -> TransformType:
+    def _transform_f(x: torch.Tensor) -> torch.Tensor:
+        return x.mean(dim=0, keepdim=True)
+
+    return _transform_f
+
+
 @frozen
 class DatasetConfig:
     expected_sample_rate: int
     zero_pad_cut: int | None
     augment: bool
+    mono: bool
 
 
 class AudioDataset(data.Dataset[torch.Tensor]):
@@ -77,6 +86,7 @@ class AudioDataset(data.Dataset[torch.Tensor]):
         expected_sample_rate: int = 48000,
         zero_pad_cut: int | None = None,
         augment: bool = False,
+        mono: bool = False,
     ) -> None:
         self.dataset_dir = dataset_dir
         self.name = dataset_dir.name
@@ -96,7 +106,8 @@ class AudioDataset(data.Dataset[torch.Tensor]):
             *[
                 _zero_pad_cut(zero_pad_cut) if zero_pad_cut is not None else _id_transform,
                 _make_stereo(),  # some of the wavs are mono
-                *augmentations
+                *augmentations,
+                _make_mono() if mono else _id_transform,
             ]
         )
 

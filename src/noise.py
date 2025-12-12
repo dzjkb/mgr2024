@@ -24,6 +24,7 @@ class Noise(nn.Module):
         n_filters: int,
         do_weight_norm: bool,
         n_bands: int,
+        audio_channels: int,
     ):
         super().__init__()
         assert all(s  % 2 == 0 for s in strides), f"all strides should be even, got {strides}"
@@ -62,7 +63,7 @@ class Noise(nn.Module):
             _weightnorm(
                 nn.Conv1d(
                     latent_size,
-                    n_filters * 2 * n_bands,  # left/right channels for each subband
+                    n_filters * audio_channels * n_bands,
                     kernel_size=2 * strides[-1],
                     padding=strides[-1] // 2,
                     stride=strides[-1],
