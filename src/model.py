@@ -80,7 +80,8 @@ class ModelConfig:
     do_weight_norm: bool = True
     activation: str = "relu"
     n_bands: int = 16
-    fixed_length: int | None = None
+    fixed_length: int | None = None,
+    mono: bool = False,
 
     def __post_init__(self) -> None:
         assert len(self.dilations) == len(
@@ -184,6 +185,7 @@ class Encoder(nn.Module):
         do_weight_norm: bool,
         activation: str,
         n_bands: int,
+        audio_channels: int,
         fixed_length: int | None = None,
     ):
         super().__init__()
@@ -209,7 +211,7 @@ class Encoder(nn.Module):
         self.net = nn.Sequential(
             _weightnorm(
                 nn.Conv1d(
-                    n_bands * 2,  # left/right audio channel
+                    n_bands * audio_channels,
                     start_channels,
                     kernel_size=self.input_kernel_size,
                     padding=_get_padding(self.input_kernel_size, 1),
@@ -305,6 +307,7 @@ class Decoder(nn.Module):
         do_weight_norm: bool,
         activation: str,
         n_bands: int,
+        audio_channels: int,
         fixed_length: int | None = None,
     ):
         super().__init__()
@@ -346,7 +349,7 @@ class Decoder(nn.Module):
         self.waveform_amp_net = _weightnorm(
             nn.Conv1d(
                 start_channels // 2 ** len(strides),
-                n_bands * 2 * amp_out_channels,  # left/right audio channel + waveform/amplitude or just waveform, depending on configuration
+                n_bands * audio_channels * amp_out_channels,
                 kernel_size=self.output_kernel_size,
                 padding=_get_padding(self.output_kernel_size, 1),
             )
@@ -356,6 +359,7 @@ class Decoder(nn.Module):
             Noise(
                 in_channels=start_channels // 2 ** len(strides),
                 n_bands=n_bands,
+                audio_channels=audio_channels,
                 **asdict(noise_config),
             )
             if noise_config is not None
@@ -408,10 +412,13 @@ class VAE(pl.LightningModule):
         activation: str = "relu",
         n_bands: int = 16,
         fixed_length: int | None = None,
+        mono: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
         assert len(dilations) == len(strides)
+
+        self.audio_channels = 1 if mono else 2
 
         self.encoder = Encoder(
             start_channels=capacity,
@@ -421,6 +428,7 @@ class VAE(pl.LightningModule):
             do_weight_norm=do_weight_norm,
             activation=activation,
             n_bands=n_bands,
+            audio_channels=self.audio_channels,
             fixed_length=fixed_length,
         )
         self.decoder = Decoder(
@@ -433,11 +441,12 @@ class VAE(pl.LightningModule):
             do_weight_norm=do_weight_norm,
             activation=activation,
             n_bands=n_bands,
+            audio_channels=self.audio_channels,
             fixed_length=fixed_length,
         )
-        self.pqmf = PQMF(100, n_bands, n_channels=2)
+        self.pqmf = PQMF(100, n_bands, n_channels=self.audio_channels)
 
-        self.discriminator = Discriminator(n_channels=2, sample_rate=SAMPLING_RATE)
+        self.discriminator = Discriminator(n_channels=self.audio_channels, sample_rate=SAMPLING_RATE)
 
         _window_sizes = stft_window_sizes or [2048, 1024, 512, 256, 128]
         self.reconstruction_loss = MultiScaleSTFTLoss(_window_sizes)
@@ -477,9 +486,9 @@ class VAE(pl.LightningModule):
         return cast(Tensor, rearrange(multiband_x, "(b chs) bands t -> b (chs bands) t", b=x.shape[0]))
 
     def _join_bands(self, multiband_x: Tensor) -> Tensor:
-        x_rearranged = cast(Tensor, rearrange(multiband_x, "b (chs c) t -> (b chs) c t", chs=2))
+        x_rearranged = cast(Tensor, rearrange(multiband_x, "b (chs c) t -> (b chs) c t", chs=self.audio_channels))
         single_band_x = self.pqmf.inverse(x_rearranged)
-        return cast(Tensor, rearrange(single_band_x, "(b chs) c t -> b (chs c) t", chs=2))
+        return cast(Tensor, rearrange(single_band_x, "(b chs) c t -> b (chs c) t", chs=self.audio_channels))
 
     @staticmethod
     def _latent_loss(mean: Tensor, logvar: Tensor) -> Tensor:

@@ -1,3 +1,4 @@
 zero_pad_cut: null
 expected_sample_rate: 48000
 augment: false
+mono: false
