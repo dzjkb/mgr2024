@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytorch_lightning as pl
+from pytorch_lightning.utilities.model_summary import summarize
 from attrs import frozen, asdict
 from torch.utils.data import DataLoader
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -81,3 +82,8 @@ def do_train(cfg: TrainingConfig) -> None:
         {"ckpt_path": cfg.checkpoint_path} if cfg.checkpoint_path is not None else {}
     )
     trainer.fit(model, train_set, val_set, **checkpoint_kwarg)  # type: ignore
+
+
+def do_summarize(cfg: TrainingConfig) -> None:
+    model = VAE(noise_config=cfg.noise, **asdict(cfg.model))
+    print(summarize(model))

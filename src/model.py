@@ -11,6 +11,7 @@ import torch.autograd
 from einops import rearrange, reduce
 from torch import optim, nn, Tensor
 from torch.nn.utils import weight_norm  # type: ignore[attr-defined]
+from torch.distributions.normal import Normal
 
 from .loss import MultiScaleSTFTLoss, feature_matching_loss, hinge_gan_losses
 # from .plots import draw_histogram
@@ -18,6 +19,7 @@ from .noise import Noise, NoiseConfig
 from .discriminators import Discriminator  # type: ignore[attr-defined]
 from .activations import ACTIVATIONS
 from .pqmf import PQMF
+from .normalizing_flows import RealNVP
 
 SAMPLING_RATE = 48000
 
@@ -80,13 +82,19 @@ class ModelConfig:
     do_weight_norm: bool = True
     activation: str = "relu"
     n_bands: int = 16
-    fixed_length: int | None = None,
-    mono: bool = False,
+    fixed_length: int | None = None
+    mono: bool = False
+    nf_posterior_layers: int | None = None
+    nf_prior_layers: int | None = None
+    prior_loss_weight: float = 1.0
 
     def __post_init__(self) -> None:
         assert len(self.dilations) == len(
             self.strides
         ), "strides and dilations need to be the same length (which is the desired amount of encoder/decoder blocks)"
+
+        assert (self.nf_posterior_layers is None) or (self.fixed_length is not None), "must be training with single latent vector if using normalizing flows"
+        assert (self.nf_prior_layers is None) or (self.fixed_length is not None), "must be training with single latent vector if using normalizing flows"
 
 
 class _ResidualDilatedUnit(nn.Module):
@@ -413,6 +421,9 @@ class VAE(pl.LightningModule):
         n_bands: int = 16,
         fixed_length: int | None = None,
         mono: bool = False,
+        nf_posterior_layers: int | None = None,
+        nf_prior_layers: int | None = None,
+        prior_loss_weight: float = 1.0,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -431,6 +442,8 @@ class VAE(pl.LightningModule):
             audio_channels=self.audio_channels,
             fixed_length=fixed_length,
         )
+        self.posterior = RealNVP(num_layers=nf_posterior_layers) if nf_posterior_layers is not None else None
+        self.prior = RealNVP(num_layers=nf_prior_layers) if nf_prior_layers is not None else None
         self.decoder = Decoder(
             start_channels=capacity * 2 ** len(strides),
             dilations=dilations,
@@ -452,6 +465,7 @@ class VAE(pl.LightningModule):
         self.reconstruction_loss = MultiScaleSTFTLoss(_window_sizes)
 
         self.latent_loss_weight = latent_loss_weight
+        self.prior_loss_weight = prior_loss_weight
         self.reconstruction_loss_weight = reconstruction_loss_weight
         self.adversarial_loss_weight = adversarial_loss_weight
         self.feature_loss_weight = feature_loss_weight
@@ -492,8 +506,16 @@ class VAE(pl.LightningModule):
 
     @staticmethod
     def _latent_loss(mean: Tensor, logvar: Tensor) -> Tensor:
-        # in the future - if normalizing flows add `log_det`
         return (mean.pow(2) + torch.exp(logvar) - logvar - 1).sum(1).mean()
+
+    @staticmethod
+    def _nf_latent_loss(z0: Tensor, mean: Tensor, logvar: Tensor, z: Tensor, log_det: Tensor) -> Tensor:
+        q0 = Normal(mean, torch.exp(0.5 * logvar))
+        iso_gaussian = Normal(0.0, 1.0)
+        return (q0.log_prob(z0).sum(-1) - iso_gaussian.log_prob(z).sum(-1) - log_det).mean()  # TODO: shapes?
+
+    def _prior_loss(self, z: Tensor) -> Tensor:
+        return self.prior.kld(z, Normal(0.0, 1.0))
 
     def _discrimination(self, x: Tensor, x_hat: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         all_discriminators_real_feature_maps = self.discriminator(x)
@@ -522,10 +544,21 @@ class VAE(pl.LightningModule):
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor, dict[str, Tensor]]:
         mean, logvar = self.encoder(self._split_bands(x))
         z = self._reparametrize(mean, logvar)
-        x_hat = self._join_bands(self.decoder(z))
+
+        if self.posterior is not None:
+            z_flow, log_det = self.posterior(z)
+        else:
+            z_flow = z
+            log_det = torch.zeros(())  # TODO size of this?
+
+        x_hat = self._join_bands(self.decoder(z_flow))
 
         losses_dict = {
-            "latent_loss": self._latent_loss(mean, logvar),
+            "latent_loss": (
+                self._latent_loss(mean, logvar)
+                if self.posterior is None
+                else self._nf_latent_loss(z, mean, logvar, z_flow, log_det)
+            ),
             "reconstruction_loss": self.reconstruction_loss(x, x_hat),
         }
         total_loss = (
@@ -544,6 +577,11 @@ class VAE(pl.LightningModule):
                 self.adversarial_loss_weight * losses_dict["adversarial_loss"]
                 + self.feature_loss_weight * losses_dict["feature_matching_loss"]
             )
+
+            if self.prior is not None:
+                prior_loss = self._prior_loss(z_flow)
+                losses_dict["prior_loss"] = prior_loss
+                total_loss += self.prior_loss_weight * prior_loss
 
         return x_hat, z, total_loss, losses_dict
 

@@ -1,0 +1,23 @@
+# @package _global_
+
+defaults:
+  - graz/graz_base
+  - override /model: mediumhigh_capacity_3s_3dilations
+  - override /dataset: sr48000_1s
+
+callbacks:
+  encoder_training_len: 200000
+  target_latent_weight: 0.00005
+
+dataset:
+  mono: true
+
+model:
+  latent_size: 2048
+  mono: true
+  fixed_length: 48000
+  nf_prior_layers: 32
+  nf_posterior_layers: 32
+
+batch_size: 4
+epochs: 10000

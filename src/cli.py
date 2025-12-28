@@ -10,7 +10,7 @@ from hydra.core.global_hydra import GlobalHydra
 from omegaconf import OmegaConf
 
 from .generate import do_generate
-from .train import do_train, TrainingConfig
+from .train import do_train, do_summarize,TrainingConfig
 from .model import SAMPLING_RATE
 
 
@@ -41,6 +41,16 @@ def train(config: str) -> None:
     )
 
     do_train(cfg)
+
+
+@jpmgr.command()
+@click.option("--config", default="configs/experiment/empty.yaml", type=click.Path())
+def summarize(config: str) -> None:
+    cfg = structure(
+        parse_hydra_config("configs/", config),
+        TrainingConfig,
+    )
+    do_summarize(cfg)
 
 
 # @jpmgr.command()

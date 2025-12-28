@@ -3305,6 +3305,24 @@ torch = ">=1.6.0"
 tests = ["librosa", "pytest"]
 
 [[package]]
+name = "normflows"
+version = "1.7.3"
+description = "Pytorch implementation of normalizing flows"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "normflows-1.7.3.tar.gz", hash = "sha256:0cc539869c9970d28041edb4d7a28006c1cec6241d9d0d553975b5b1155c2071"},
+]
+
+[package.dependencies]
+numpy = "*"
+torch = "*"
+
+[package.extras]
+docs = ["mkdocs", "mkdocs-jupyter", "mkdocstrings[python]"]
+
+[[package]]
 name = "notebook-shim"
 version = "0.2.4"
 description = "A shim layer for notebook traits and config"
@@ -6461,4 +6479,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.10"
-content-hash = "12a1dd7ea604c7d93e474279d78b32bd34eae56e5928c4ad63dc083501a29f85"
+content-hash = "64d2d9b0f20c93161a6d1f0ade55502891da187feddc19b0b2cc23e2ef39fee4"

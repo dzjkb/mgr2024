@@ -1,0 +1,4 @@
+zero_pad_cut: 48000  # 1s
+expected_sample_rate: 48000
+augment: false
+mono: false
