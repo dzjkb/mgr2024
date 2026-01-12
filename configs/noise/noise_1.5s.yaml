@@ -1,0 +1,3 @@
+strides: [2, 3, 5]
+latent_size: 128
+n_filters: 6

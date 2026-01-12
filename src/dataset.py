@@ -5,7 +5,7 @@ from typing import Callable as Fn
 
 import torch
 import torchaudio as ta
-from attrs import frozen
+from attrs import frozen, evolve
 from torch.nn import functional as F
 from torch.utils import data
 from tqdm import tqdm
@@ -38,7 +38,7 @@ def _phase_mangle(sr: int) -> TransformType:
 
 def _dequantize(bits: int) -> TransformType:
     def _transform_f(x: torch.Tensor) -> torch.Tensor:
-        return x + torch.rand_like(x) / 2**bits
+        return x + torch.rand_like(x) / 2**bits 
 
     return _transform_f
 
@@ -70,12 +70,22 @@ def _make_mono() -> TransformType:
     return _transform_f
 
 
+def _cast_float() -> TransformType:
+    def _transform_f(x: torch.Tensor) -> torch.Tensor:
+        return x.type(dtype=torch.float32)
+
+    return _transform_f
+
+
 @frozen
 class DatasetConfig:
     expected_sample_rate: int
     zero_pad_cut: int | None
     augment: bool
     mono: bool
+
+    def val_overrides(self) -> "DatasetConfig":
+        return evolve(self, augment=False)
 
 
 class AudioDataset(data.Dataset[torch.Tensor]):
@@ -108,6 +118,7 @@ class AudioDataset(data.Dataset[torch.Tensor]):
                 _make_stereo(),  # some of the wavs are mono
                 *augmentations,
                 _make_mono() if mono else _id_transform,
+                _cast_float(),
             ]
         )
 

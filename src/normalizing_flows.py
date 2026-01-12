@@ -3,40 +3,52 @@ import torch
 from torch import nn, Tensor
 
 
-def _init_flow_nets(hidden_size: int) -> tuple[nf.nets.MLP, nf.nets.MLP]:
-    layer_sizes = [hidden_size, 2 * hidden_size, hidden_size]
-    return nf.nets.MLP(layer_sizes, init_zeros=True), nf.nets.MLP(layer_sizes, init_zeros=True)
+def _init_flow_nets(latent_size: int) -> tuple[nf.nets.MLP, nf.nets.MLP]:
+    layer_sizes = [latent_size, 16, latent_size]
+    return (
+        nf.nets.MLP(layer_sizes, leaky=0.01, init_zeros=True),
+        nf.nets.MLP(layer_sizes, leaky=0.01, output_fn="tanh", init_zeros=True),
+    )
 
 
 class RealNVP(nn.Module):
-    def __init__(self, hidden_size: int = 32, num_layers: int = 16) -> None:
+    def __init__(self, latent_size: int, num_layers: int = 16) -> None:
         super().__init__()
-        b = Tensor([1 - (i % 2) for i in range(hidden_size)])
+        b = Tensor([1 - (i % 2) for i in range(latent_size)])
         flows = [
             (
-                nf.flows.MaskedAffineFlow(b, *_init_flow_nets(hidden_size))
+                nf.flows.MaskedAffineFlow(b, *_init_flow_nets(latent_size))
                 if i % 2 == 0
-                else nf.flows.MaskedAffineFlow(1 - b, *_init_flow_nets(hidden_size))
+                else nf.flows.MaskedAffineFlow(1 - b, *_init_flow_nets(latent_size))
             )
             for i in range(num_layers)
         ]
 
         self.flows = nn.ModuleList(flows)
+        self.register_buffer("freeze_weights", torch.tensor(0))
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
-        ld = Tensor([0.0])
+        ld = torch.zeros(x.shape[0], device=x.device)
         for flow in self.flows:
-            x, ld_ = flow(x)
+            x, ld_ = flow(x.squeeze())
             ld += ld_
 
-        return x, ld
+        x_unsqueezed = x[..., None]
+        if self.freeze_weights:  # type: ignore[has-type]
+            x_unsqueezed = x_unsqueezed.detach()
+            ld = ld.detach()
+
+        return x_unsqueezed, ld
 
     def kld(self, x: Tensor, base_distribution: torch.distributions.Distribution) -> Tensor:
         # see https://github.com/VincentStimper/normalizing-flows/blob/master/normflows/core.py - forward_kld
-        log_q = torch.zeros(len(x), device=x.device)
-        z = x
+        log_q = torch.zeros(x.shape[0], device=x.device)
+        z = x.squeeze()
         for i in range(len(self.flows) - 1, -1, -1):
             z, ld = self.flows[i].inverse(z)
             log_q += ld
-        log_q += base_distribution.log_prob(z)
+        log_q += base_distribution.log_prob(z).mean(-1)
         return -torch.mean(log_q)
+
+    def freeze(self, value: bool) -> None:
+        self.freeze_weights = torch.tensor(int(value), device=self.freeze_weights.device)  # type: ignore[has-type]

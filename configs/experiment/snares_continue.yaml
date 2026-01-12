@@ -3,5 +3,5 @@
 defaults:
   - snares
 
-checkpoint_path: /home/jp/mgr2024/logs/snares/snares_2025-07-09_14-45/version_0/checkpoints/last.ckpt
-
+checkpoint_path: /home/jp/mgr2024/logs/snares/version_0/checkpoints/last.ckpt
+batch_size: 4

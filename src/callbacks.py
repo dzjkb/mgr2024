@@ -98,9 +98,9 @@ class EncoderTrainingPhaseCallback(pl.Callback):
         if self.state["training_steps"] >= self.duration:
             pl_module.discrimination_phase = True  # type: ignore
             if self.state["training_steps"] < self.duration + self.disc_warmup:
-                pl_module.discriminator_warmup_phase = True
+                pl_module.discriminator_warmup_phase = True  # type: ignore
             else:
-                pl_module.discriminator_warmup_phase = False
+                pl_module.discriminator_warmup_phase = False  # type: ignore
         self.state["training_steps"] += 1
 
     def state_dict(self) -> dict[str, Any]:

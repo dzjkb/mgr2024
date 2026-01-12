@@ -1,28 +1,27 @@
 # @package _global_
 
 defaults:
-  - override /callbacks: graz_v0
+  - graz/graz_base
   - override /model: small_capacity_3s_3dilations
-  - override /dataset: snares
+  - override /dataset: sr48000_1s
 
 callbacks:
-  encoder_training_len: 200000
-  discriminator_warmup_len: 40000
+  encoder_training_len: 500000
+  target_latent_weight: 0.0001
 
 dataset:
   augment: true
   mono: true
 
 model:
-  lr_decay_steps: 100000
-  activation: relu
+  latent_size: 256
   mono: true
-  fixed_length: 76800
+  fixed_length: 48000
   nf_prior_layers: null
   nf_posterior_layers: null
   monitor_grad_norm: false
 
-log_dir: logs
-experiment_name: snares
+train_dataset_path: data/piano/graz1s_train
+val_dataset_path: data/piano/graz1s_val
 batch_size: 8
 epochs: 6000

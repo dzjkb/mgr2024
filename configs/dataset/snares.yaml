@@ -1,0 +1,4 @@
+zero_pad_cut: 76800  # 1.5 * 48000 + 4800
+expected_sample_rate: 48000
+augment: false
+mono: false

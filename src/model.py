@@ -131,6 +131,59 @@ class _ResidualDilatedUnit(nn.Module):
         return x + self.net(x)
 
 
+class _MeanReduction(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x: Tensor) -> Tensor:
+        return x.mean(dim=-1, keepdim=True)
+
+
+class _TemporalReduction(nn.Module):
+    """
+    given a tensor of shape (batch, channels, length) reduces the last dimension to 1
+    applying a _different_ linear layer (a different set of weights) to each channel
+
+    note: the last dimension is kept as a size 1 dimension for consistency
+    """
+
+    def __init__(self, in_length: int, channels: int, do_weight_norm: bool):
+        super().__init__()
+
+        def _weightnorm(m: nn.Module) -> nn.Module:
+            return m if not do_weight_norm else weight_norm(m)
+
+        self.in_length = in_length
+        self.linear = _weightnorm(nn.Linear(channels * in_length, channels))
+
+    def forward(self, x: Tensor) -> Tensor:
+        x_flattened = cast(Tensor, rearrange(x, "b c l -> b (c l)"))
+        x_reduced = cast(Tensor, self.linear(x_flattened))
+        return x_reduced.unsqueeze(-1)
+
+
+class _TemporalUpsampling(nn.Module):
+    """
+    given a tensor of shape (batch, channels, 1) upsamples the last dimension to `out_length`
+    applying a _different_ linear layer (a different set of weights) to each channel
+    """
+
+    def __init__(self, out_length: int, channels: int, do_weight_norm: bool):
+        super().__init__()
+
+        def _weightnorm(m: nn.Module) -> nn.Module:
+            return m if not do_weight_norm else weight_norm(m)
+
+        self.out_length = out_length
+        self.linear = _weightnorm(nn.Linear(channels, channels * out_length))
+
+    def forward(self, x: Tensor) -> Tensor:
+        x_upsampled = self.linear(x.squeeze(-1))
+        x_reshaped = cast(Tensor, rearrange(x_upsampled, "b (c l) -> b c l", l=self.out_length))
+        return x_reshaped
+
+
+
 # ================================== ENCODER =============================================
 
 
@@ -213,7 +266,11 @@ class Encoder(nn.Module):
         single_latent_reduction: list[nn.Module] = (
             []
             if fixed_length is None
-            else [_weightnorm(nn.Linear(fixed_length // prod(strides), 1))]
+            else [
+                nn.ReLU(),
+                _TemporalReduction(fixed_length // (prod(strides) * n_bands), latent_size * 2, do_weight_norm=do_weight_norm),
+            ]
+            # else [nn.ReLU(), _MeanReduction()]
         )
 
         self.net = nn.Sequential(
@@ -336,7 +393,10 @@ class Decoder(nn.Module):
         single_latent_upsampling: list[nn.Module] = (
             []
             if fixed_length is None
-            else [_weightnorm(nn.Linear(1, fixed_length // prod(strides)))]
+            else [
+                _TemporalUpsampling(fixed_length // (prod(strides) * n_bands), latent_size, do_weight_norm=do_weight_norm),
+                nn.ReLU(),
+            ]
         )
 
         self.net = nn.Sequential(
@@ -442,8 +502,8 @@ class VAE(pl.LightningModule):
             audio_channels=self.audio_channels,
             fixed_length=fixed_length,
         )
-        self.posterior = RealNVP(num_layers=nf_posterior_layers) if nf_posterior_layers is not None else None
-        self.prior = RealNVP(num_layers=nf_prior_layers) if nf_prior_layers is not None else None
+        self.posterior = RealNVP(latent_size=latent_size, num_layers=nf_posterior_layers) if nf_posterior_layers is not None else None
+        self.prior = RealNVP(latent_size=latent_size, num_layers=nf_prior_layers) if nf_prior_layers is not None else None
         self.decoder = Decoder(
             start_channels=capacity * 2 ** len(strides),
             dilations=dilations,
@@ -512,7 +572,8 @@ class VAE(pl.LightningModule):
     def _nf_latent_loss(z0: Tensor, mean: Tensor, logvar: Tensor, z: Tensor, log_det: Tensor) -> Tensor:
         q0 = Normal(mean, torch.exp(0.5 * logvar))
         iso_gaussian = Normal(0.0, 1.0)
-        return (q0.log_prob(z0).sum(-1) - iso_gaussian.log_prob(z).sum(-1) - log_det).mean()  # TODO: shapes?
+        # z0 and z are shaped (batch_size, latent_size, 1)
+        return (q0.log_prob(z0).squeeze().sum(-1) - iso_gaussian.log_prob(z).squeeze().sum(-1) - log_det).mean()
 
     def _prior_loss(self, z: Tensor) -> Tensor:
         return self.prior.kld(z, Normal(0.0, 1.0))
@@ -549,7 +610,7 @@ class VAE(pl.LightningModule):
             z_flow, log_det = self.posterior(z)
         else:
             z_flow = z
-            log_det = torch.zeros(())  # TODO size of this?
+            log_det = torch.zeros((x.shape[0],))
 
         x_hat = self._join_bands(self.decoder(z_flow))
 
@@ -587,6 +648,8 @@ class VAE(pl.LightningModule):
 
     def training_step(self, batch: Tensor, batch_idx: int) -> None:
         self.encoder.freeze(self.discrimination_phase)
+        if self.posterior is not None:
+            self.posterior.freeze(self.discrimination_phase)
         gen_opt, disc_opt = self.optimizers()  # type: ignore[attr-defined]
         _, _, gen_loss, losses_dict = self.forward(batch)
 
@@ -612,9 +675,9 @@ class VAE(pl.LightningModule):
 
     def validation_step(self, batch: Tensor, batch_idx: int) -> None:
         reconstructed_audio, z, loss, losses_dict = self.forward(batch)
-        self.log("loss/validation_loss", loss)
-        self.log("loss/validation_reconstruction_loss", losses_dict["reconstruction_loss"])
-        self.log("loss/validation_latent_loss", losses_dict["latent_loss"])
+        self.log("loss/validation_loss", loss, on_step=False, on_epoch=True)
+        self.log("loss/validation_reconstruction_loss", losses_dict["reconstruction_loss"], on_step=False, on_epoch=True)
+        self.log("loss/validation_latent_loss", losses_dict["latent_loss"], on_step=False, on_epoch=True)
 
         self.validation_outputs["original"].append(batch)
         self.validation_outputs["audio"].append(reconstructed_audio)
@@ -634,6 +697,10 @@ class VAE(pl.LightningModule):
         #     "li b c len -> (li b) c len",
         # )
         # taking second batch cuz why not
+        if len(self.validation_outputs["audio"]) < 2:  # might happen if loading checkpoint or batch_size < 2, but tf are you doing then
+            self.validation_epoch += 1
+            return
+
         validation_audio = self.validation_outputs["audio"][1]
         audio_concatenated = self._mono_concatenate_batch(validation_audio)
         self.logger.experiment.add_audio(  # type: ignore
@@ -669,15 +736,14 @@ class VAE(pl.LightningModule):
         #     self.validation_epoch,
         # )
 
-        # unnecessary for now
-        # validation_embeddings = self.validation_outputs["latent"][0]
-        # embeddings_concatenated: Tensor = rearrange(validation_embeddings, "b d l -> (b l) d")
-        # assert len(validation_embeddings.shape) == 3, f"got unexpected embedding shape: {validation_embeddings.shape}"
-        # self.logger.experiment.add_embedding(  # type: ignore
-        #     embeddings_concatenated.cpu().numpy(),
-        #     tag="latent space",
-        #     global_step=self.validation_epoch,
-        # )
+        validation_embeddings = torch.concat(self.validation_outputs["latent"], dim=0)
+        embeddings_concatenated: Tensor = rearrange(validation_embeddings, "b d l -> (b l) d")
+        assert len(validation_embeddings.shape) == 3, f"got unexpected embedding shape: {validation_embeddings.shape}"
+        self.logger.experiment.add_embedding(  # type: ignore
+            embeddings_concatenated.cpu().numpy(),
+            tag="latent space",
+            global_step=self.validation_epoch,
+        )
 
         self.validation_outputs["audio"] = []
         self.validation_outputs["latent"] = []

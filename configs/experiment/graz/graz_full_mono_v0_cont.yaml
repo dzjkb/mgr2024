@@ -2,7 +2,7 @@
 
 defaults:
   - graz/graz_base
-  - override /model: small_capacity_3s_3dilations
+  - override /model: medium_capacity_3s_3dilations
   - override /dataset: sr48000_1s
 
 callbacks:
@@ -22,5 +22,6 @@ model:
 
 train_dataset_path: data/piano/graz1s_train
 val_dataset_path: data/piano/graz1s_val
+checkpoint_path: null
 batch_size: 8
 epochs: 6000
