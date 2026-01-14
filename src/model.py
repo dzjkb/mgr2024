@@ -267,10 +267,10 @@ class Encoder(nn.Module):
             []
             if fixed_length is None
             else [
-                nn.ReLU(),
+                nn.Tanh(),
                 _TemporalReduction(fixed_length // (prod(strides) * n_bands), latent_size * 2, do_weight_norm=do_weight_norm),
             ]
-            # else [nn.ReLU(), _MeanReduction()]
+            # else [nn.Tanh(), _MeanReduction()]
         )
 
         self.net = nn.Sequential(
@@ -395,7 +395,7 @@ class Decoder(nn.Module):
             if fixed_length is None
             else [
                 _TemporalUpsampling(fixed_length // (prod(strides) * n_bands), latent_size, do_weight_norm=do_weight_norm),
-                nn.ReLU(),
+                nn.Tanh(),
             ]
         )
 
@@ -542,7 +542,7 @@ class VAE(pl.LightningModule):
             "latent": [],
             "original": [],
         }
-        self.validation_epoch = 0
+        self.register_buffer("validation_epoch", torch.tensor(0))
         self.discrimination_phase = False
         self.discriminator_warmup_phase = False
 
@@ -603,7 +603,8 @@ class VAE(pl.LightningModule):
         return gen_loss, disc_loss, feature_loss
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor, dict[str, Tensor]]:
-        mean, logvar = self.encoder(self._split_bands(x))
+        x_mb = self._split_bands(x)
+        mean, logvar = self.encoder(x_mb)
         z = self._reparametrize(mean, logvar)
 
         if self.posterior is not None:
@@ -612,7 +613,8 @@ class VAE(pl.LightningModule):
             z_flow = z
             log_det = torch.zeros((x.shape[0],))
 
-        x_hat = self._join_bands(self.decoder(z_flow))
+        x_hat_mb = self.decoder(z_flow)
+        x_hat = self._join_bands(x_hat_mb)
 
         losses_dict = {
             "latent_loss": (
@@ -621,10 +623,12 @@ class VAE(pl.LightningModule):
                 else self._nf_latent_loss(z, mean, logvar, z_flow, log_det)
             ),
             "reconstruction_loss": self.reconstruction_loss(x, x_hat),
+            "multiband_reconstruction_loss": self.reconstruction_loss(x_mb, x_hat_mb),
         }
         total_loss = (
             self.latent_loss_weight * losses_dict["latent_loss"]
             + self.reconstruction_loss_weight * losses_dict["reconstruction_loss"]
+            + self.reconstruction_loss_weight * losses_dict["multiband_reconstruction_loss"]
         )
 
         if self.discrimination_phase:
@@ -675,9 +679,9 @@ class VAE(pl.LightningModule):
 
     def validation_step(self, batch: Tensor, batch_idx: int) -> None:
         reconstructed_audio, z, loss, losses_dict = self.forward(batch)
-        self.log("loss/validation_loss", loss, on_step=False, on_epoch=True)
-        self.log("loss/validation_reconstruction_loss", losses_dict["reconstruction_loss"], on_step=False, on_epoch=True)
-        self.log("loss/validation_latent_loss", losses_dict["latent_loss"], on_step=False, on_epoch=True)
+        self.log("loss/validation_loss", loss)
+        self.log("loss/validation_reconstruction_loss", losses_dict["reconstruction_loss"])
+        self.log("loss/validation_latent_loss", losses_dict["latent_loss"])
 
         self.validation_outputs["original"].append(batch)
         self.validation_outputs["audio"].append(reconstructed_audio)
@@ -698,7 +702,10 @@ class VAE(pl.LightningModule):
         # )
         # taking second batch cuz why not
         if len(self.validation_outputs["audio"]) < 2:  # might happen if loading checkpoint or batch_size < 2, but tf are you doing then
-            self.validation_epoch += 1
+            self.validation_outputs["audio"] = []
+            self.validation_outputs["latent"] = []
+            self.validation_outputs["original"] = []
+            self.validation_epoch += 1  # type: ignore
             return
 
         validation_audio = self.validation_outputs["audio"][1]
@@ -706,22 +713,22 @@ class VAE(pl.LightningModule):
         self.logger.experiment.add_audio(  # type: ignore
             "validation_audio",
             audio_concatenated.numpy(),
-            self.validation_epoch,
+            self.validation_epoch.cpu().item(),  # type: ignore
             SAMPLING_RATE,
         )
-        if self.validation_epoch <= 0:
+        if self.validation_epoch <= 0:  # type: ignore
             original_audio = self.validation_outputs["original"][1]
             self.logger.experiment.add_audio(  # type: ignore
                 "validation_audio_original",
                 self._mono_concatenate_batch(original_audio).numpy(),
-                self.validation_epoch,
+                self.validation_epoch.cpu().item(),  # type: ignore
                 SAMPLING_RATE,
             )
 
         # self.logger.experiment.add_histogram(  # type: ignore
         #     "validation_audio_histogram",
         #     audio_concatenated.numpy(),
-        #     self.validation_epoch,
+        #     self.validation_epoch.cpu().item(),  # type: ignore
         #     bins="fd",
         # )
         # histograms don't work and are expensive and all that, eh
@@ -733,7 +740,7 @@ class VAE(pl.LightningModule):
         # self.logger.experiment.add_figure(  # type: ignore
         #     "validation_audio_histogram",
         #     draw_histogram(audio_concatenated.numpy()),
-        #     self.validation_epoch,
+        #     self.validation_epoch.cpu().item(),  # type: ignore
         # )
 
         validation_embeddings = torch.concat(self.validation_outputs["latent"], dim=0)
@@ -742,13 +749,13 @@ class VAE(pl.LightningModule):
         self.logger.experiment.add_embedding(  # type: ignore
             embeddings_concatenated.cpu().numpy(),
             tag="latent space",
-            global_step=self.validation_epoch,
+            global_step=self.validation_epoch,  # type: ignore
         )
 
         self.validation_outputs["audio"] = []
         self.validation_outputs["latent"] = []
         self.validation_outputs["original"] = []
-        self.validation_epoch += 1
+        self.validation_epoch += 1  # type: ignore
 
         if self.detect_nans:
             torch.autograd.set_detect_anomaly(True)  # type: ignore[attr-defined]

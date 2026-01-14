@@ -1,0 +1,16 @@
+capacity: 64
+latent_size: 64
+dilations:
+  - [1, 3, 9]
+  - [1, 3, 9]
+  - [1, 3, 9]
+  - [1, 3]
+strides: [4, 4, 4, 2] 
+lr_decay_steps: 200000
+discriminator_lr: 0.0001
+initial_lr: 0.0001
+final_lr: 0.00001
+
+feature_loss_weight: 10.0
+activation: relu
+n_bands: 16

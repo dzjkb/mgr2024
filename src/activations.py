@@ -1,10 +1,10 @@
-from typing import cast, Callable
+from typing import Callable
 
 import torch
 from torch import Tensor, jit, nn
 
 ACTIVATIONS: dict[str, Callable[[int], nn.Module]] = {
-    "relu": lambda dims: nn.LeakyReLU(),
+    "relu": lambda dims: nn.LeakyReLU(.2),
     "snake": lambda dims: Snake1d(dims),
 }
 

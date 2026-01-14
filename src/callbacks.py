@@ -19,7 +19,7 @@ class CallbacksConfig:
 def init_callbacks(cfg: CallbacksConfig) -> list[pl.Callback]:
     callbacks: list[pl.Callback] = [
         pl.callbacks.ModelCheckpoint(monitor="loss/validation_loss", filename="best"),
-        pl.callbacks.ModelCheckpoint(save_last=True, save_top_k=0),
+        pl.callbacks.ModelCheckpoint(save_last=True, save_top_k=0, save_on_train_epoch_end=True),
         pl.callbacks.LearningRateMonitor(logging_interval="epoch"),
     ]
 
