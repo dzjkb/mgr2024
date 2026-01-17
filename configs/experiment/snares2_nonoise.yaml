@@ -4,6 +4,7 @@ defaults:
   - override /callbacks: graz_v0
   - override /model: small_capacity_4dilations_ravestrides
   - override /dataset: snares
+  - override /noise: null
 
 callbacks:
   encoder_training_len: 150000

@@ -12,7 +12,7 @@ from tqdm import tqdm
 from toolz import compose_left
 
 from .augmentations import random_phase_mangle
-from .evaluations.utils import make_mono
+from .ds_utils import make_stereo, make_mono
 
 TransformType: TypeAlias = Fn[[torch.Tensor], torch.Tensor]
 
@@ -56,16 +56,14 @@ def _zero_pad_cut(length: int) -> TransformType:
 
 def _make_stereo() -> TransformType:
     def _transform_f(x: torch.Tensor) -> torch.Tensor:
-        if x.shape[0] == 1:
-            return torch.concat((x, x))
-        return x
+        return make_stereo(x)
 
     return _transform_f
 
 
 def _make_mono() -> TransformType:
     def _transform_f(x: torch.Tensor) -> torch.Tensor:
-        return x.mean(dim=0, keepdim=True)
+        return make_mono(x)
 
     return _transform_f
 

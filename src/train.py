@@ -28,7 +28,7 @@ class TrainingConfig:
     val_every: int
     model: ModelConfig
     callbacks: CallbacksConfig
-    noise: NoiseConfig
+    noise: NoiseConfig | None
     dataset: DatasetConfig
 
 

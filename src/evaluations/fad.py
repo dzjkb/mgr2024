@@ -1,5 +1,5 @@
 import torch
-from fadtk import FrechetAudioDistance, CLAPLaionModel
+# from fadtk import FrechetAudioDistance, CLAPLaionModel
 
 class _CLAPSingleton:
     _model: CLAPLaionModel | None = None

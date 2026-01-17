@@ -140,10 +140,10 @@ class Discriminator(nn.Module):
 
     def __init__(
         self,
-        # periods: list = [2, 3, 5, 7, 11],
-        periods: list = [2, 3, 5, 7],
-        # fft_sizes: list = [2048, 1024, 512],
-        fft_sizes: list = [1024, 512],
+        periods: list = [2, 3, 5, 7, 11],
+        # periods: list = [2, 3, 5, 7],
+        fft_sizes: list = [2048, 1024, 512],
+        # fft_sizes: list = [1024, 512],
         sample_rate: int = 44100,
         bands: list = BANDS,
         n_channels: int = 1,

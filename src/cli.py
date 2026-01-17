@@ -1,30 +1,18 @@
-from typing import Any, cast, Generator
+from typing import Generator
 from pathlib import Path
 
 import click
 import torchaudio as ta
 from cattrs import structure
 from tqdm import tqdm
-from hydra import compose, initialize_config_dir
-from hydra.core.global_hydra import GlobalHydra
-from omegaconf import OmegaConf
 
 from .generate import do_generate
 from .train import do_train, do_summarize,TrainingConfig
 from .model import SAMPLING_RATE
-
-
-def parse_hydra_config(root_configs_dir: str, path: str) -> dict[str, Any]:
-    GlobalHydra.instance().clear()
-    abs_training_dir_path = Path(root_configs_dir).resolve()
-
-    assert Path(path).exists(), f"experiment config {path} does not exist"
-    relative_path = path.removeprefix("configs/experiment/")
-
-    with initialize_config_dir(str(abs_training_dir_path), version_base=None):
-        config = compose(config_name="default", overrides=[f"+experiment={relative_path}"])
-
-    return cast(dict[str, Any], OmegaConf.to_object(config))
+from .evaluations.kid import kid_for_audio_directories, kid_for_serialized_tensors, kid_for_serialized_embeddings
+from .ds_utils import embed_directory as do_embed_directory
+from .ds_utils import save_audio_tensor
+from .configs import parse_hydra_config
 
 
 @click.group(context_settings={"auto_envvar_prefix": "JPMGR"})
@@ -53,19 +41,30 @@ def summarize(config: str) -> None:
     do_summarize(cfg)
 
 
-# @jpmgr.command()
-# @click.option("--checkpoint", type=click.Path())
-# @click.option("--count", type=int)
-# @click.option("--target_dir", type=click.Path())
-# @click.option("--batch_size", type=int)
-# def generate(checkpoint: str, count: int, target_dir: str, batch_size: int) -> None:
-#     assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got {checkpoint}"
-#     do_generate(
-#         checkpoint=checkpoint,
-#         count=count,
-#         target_dir=target_dir,
-#         batch_size=batch_size
-#     )
+@jpmgr.command()
+@click.option("--config_path", type=click.Path())
+@click.option("--checkpoint", type=click.Path())
+@click.option("--count", type=int)
+@click.option("--target_dir", type=click.Path())
+@click.option("--batch_size", type=int | None)
+@click.option("--device", type=str | None)
+def generate(
+    config_path: str,
+    checkpoint: str,
+    count: int,
+    target_dir: str,
+    batch_size: int | None,
+    device: str | None,
+) -> None:
+    assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got {checkpoint}"
+    do_generate(
+        config_path=config_path,
+        checkpoint=checkpoint,
+        count=count,
+        target_dir=target_dir,
+        batch_size=batch_size,
+        device=device,
+    )
 
 
 @jpmgr.command()
@@ -130,6 +129,61 @@ def dataset_from_file(in_file: str, target_dir: str, target_length: float, overl
             in_audio[..., start:end],
             SAMPLING_RATE,
         )
+
+
+@jpmgr.command()
+@click.option("--reference_set", type=click.Path())
+@click.option("--target_set", type=click.Path())
+@click.option("--format", type=str)
+@click.option("--data_length", type=float)
+def calculate_kid(reference_set: str, target_set: str, format: str, data_length: float) -> None:
+    match format:
+        case "directory":
+            assert data_length is not None, "data_length is required if format == 'directory'"
+            kid = kid_for_audio_directories(reference_set, target_set, data_length)
+        case "serialized":
+            kid = kid_for_serialized_tensors(reference_set, target_set)
+        case "embeddings":
+            kid = kid_for_serialized_embeddings(reference_set, target_set)
+        case _:
+            assert False, "expected format to be one of: (directory, serialized)"
+
+    print("==========================")
+    print(f"kid = {kid:.8f}")
+    print("==========================")
+
+
+@jpmgr.command()
+@click.option("--reference_set", type=click.Path())
+@click.option("--target_set", type=click.Path())
+@click.option("--format", type=str)
+@click.option("--data_length", type=float)
+def calculate_fad(reference_set: str, target_set: str, format: str, data_length: float) -> None:
+    # TODO
+    # match format:
+    #     case "directory":
+    #         assert data_length is not None, "data_length is required if format == 'directory'"
+    #         kid = kid_for_audio_directories(reference_set, target_set, data_length)
+    #     case "serialized":
+    #         kid = kid_for_serialized_tensors(reference_set, target_set)
+    #     case "embeddings":
+    #         kid = kid_for_serialized_embeddings(reference_set, target_set)
+    #     case _:
+    #         assert False, "expected format to be one of: (directory, serialized)"
+
+    # print("==========================")
+    # print(f"fad = {fad:.8f}")
+    # print("==========================")
+    pass
+
+
+@jpmgr.command()
+@click.option("--audio_path", type=click.Path())
+@click.option("--target_path", type=click.Path())
+@click.option("--data_length", type=float)
+def embed_directory(audio_path: str, target_path: str, data_length: float) -> None:
+    embeddings = do_embed_directory(audio_path, data_length)
+    save_audio_tensor(embeddings, target_path)
 
 
 if __name__ == "__main__":
