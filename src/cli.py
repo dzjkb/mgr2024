@@ -46,8 +46,8 @@ def summarize(config: str) -> None:
 @click.option("--checkpoint", type=click.Path())
 @click.option("--count", type=int)
 @click.option("--target_dir", type=click.Path())
-@click.option("--batch_size", type=int | None)
-@click.option("--device", type=str | None)
+@click.option("--batch_size", type=int)
+@click.option("--device", type=str)
 def generate(
     config_path: str,
     checkpoint: str,
@@ -57,8 +57,14 @@ def generate(
     device: str | None,
 ) -> None:
     assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got {checkpoint}"
+    cfg = structure(
+        parse_hydra_config("configs/", config_path),
+        TrainingConfig,
+    )
     do_generate(
-        config_path=config_path,
+        model_config=cfg.model,
+        noise_config=cfg.noise,
+        sample_rate=cfg.dataset.expected_sample_rate,
         checkpoint=checkpoint,
         count=count,
         target_dir=target_dir,

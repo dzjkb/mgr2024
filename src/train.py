@@ -28,8 +28,8 @@ class TrainingConfig:
     val_every: int
     model: ModelConfig
     callbacks: CallbacksConfig
-    noise: NoiseConfig | None
     dataset: DatasetConfig
+    noise: NoiseConfig | None = None
 
 
 def _log_config(cfg: TrainingConfig, path: str) -> None:
@@ -50,7 +50,7 @@ def do_train(cfg: TrainingConfig) -> None:
         assert cfg.model.fixed_length == cfg.dataset.zero_pad_cut, f"model must be configured to work on the same length as the dataset is padded to, got model length: {cfg.model.fixed_length}, dataset length: {cfg.dataset.zero_pad_cut}"
     assert cfg.model.mono == cfg.dataset.mono, f"both model and dataset must have the same mono setting, got model: {cfg.model.mono}, dataset: {cfg.dataset.mono}"
 
-    model = VAE(noise_config=cfg.noise, **asdict(cfg.model))
+    model = VAE(noise_config=cfg.noise, **asdict(cfg.model), test_set_path=cfg.val_dataset_path)
     train_set = DataLoader(
         AudioDataset(Path(cfg.train_dataset_path), **asdict(cfg.dataset)),
         batch_size=cfg.batch_size,

@@ -10,6 +10,13 @@ from torch.nn import functional as F
 from .evaluations.clap import get_embeddings, SAMPLING_RATE
 
 
+def save_generated_audio(audio: Tensor, target_dir: str, sample_rate: int) -> None:
+    path = Path(target_dir)
+    path.mkdir(parents=True)
+    for i in range(audio.shape[0]):
+        ta.save(path / f"{i}.flac", audio[i].cpu(), sample_rate)
+
+
 def make_stereo(x: Tensor) -> Tensor:
     if x.shape[0] == 1:
         return torch.concat((x, x))
@@ -106,5 +113,6 @@ def embed_directory(path: str, target_length_seconds: float) -> AudioTensor:
         sr=SAMPLING_RATE,
         mono=True,
     )
-    embeddings = get_embeddings(audio_tensor.data)
+    assert audio_tensor.data.shape[1] == 1, "clap embeddings accept only mono audio"
+    embeddings = get_embeddings(audio_tensor.data.squeeze(1))
     return evolve(audio_tensor, data=embeddings)

@@ -4,6 +4,7 @@ defaults:
   - override /callbacks: graz_v0
   - override /model: small_capacity_4dilations_ravestrides
   - override /dataset: snares
+  - override /noise: noise2
 
 callbacks:
   encoder_training_len: 150000
@@ -31,4 +32,4 @@ model:
 log_dir: logs
 experiment_name: snares
 batch_size: 6
-epochs: 3000
+epochs: 1300

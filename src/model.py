@@ -1,5 +1,6 @@
 from math import floor, ceil, prod
-from typing import cast, Mapping, Any
+from typing import cast, Mapping, Any, Iterable
+from pathlib import Path
 
 from attrs import frozen, asdict
 
@@ -20,8 +21,12 @@ from .discriminators import Discriminator  # type: ignore[attr-defined]
 from .activations import ACTIVATIONS
 from .pqmf import PQMF
 from .normalizing_flows import RealNVP
+from .evaluations.kid import kid_for_serialized_embeddings, SAMPLING_RATE
+from .evaluations.fad import fad
+from .ds_utils import embed_directory, save_audio_tensor, save_generated_audio
 
 SAMPLING_RATE = 48000
+EVAL_WORKDIR = "/media/Data/jp_dir/sounds/eval"
 
 
 def _get_padding(kernel_size: int, dilation: int) -> int:
@@ -446,7 +451,7 @@ class Decoder(nn.Module):
             )
             amp_modded = waveform * torch.sigmoid(amp_mod)
         else:
-            amp_modded = waveform_amp  # not actually amp moded, mind you
+            amp_modded = torch.tanh(waveform_amp)  # not actually amp moded, mind you
 
         if self.noise_net is not None:
             noise = self.noise_net(x_hat)
@@ -484,12 +489,16 @@ class VAE(pl.LightningModule):
         nf_posterior_layers: int | None = None,
         nf_prior_layers: int | None = None,
         prior_loss_weight: float = 1.0,
+        test_set_path: str | None = None,
     ):
         super().__init__()
         self.save_hyperparameters()
         assert len(dilations) == len(strides)
 
         self.audio_channels = 1 if mono else 2
+        self.latent_size = latent_size
+        self.fixed_length = fixed_length
+        self.test_set_path = test_set_path
 
         self.encoder = Encoder(
             start_channels=capacity,
@@ -743,14 +752,43 @@ class VAE(pl.LightningModule):
         #     self.validation_epoch.cpu().item(),  # type: ignore
         # )
 
-        validation_embeddings = torch.concat(self.validation_outputs["latent"], dim=0)
-        embeddings_concatenated: Tensor = rearrange(validation_embeddings, "b d l -> (b l) d")
-        assert len(validation_embeddings.shape) == 3, f"got unexpected embedding shape: {validation_embeddings.shape}"
-        self.logger.experiment.add_embedding(  # type: ignore
-            embeddings_concatenated.cpu().numpy(),
-            tag="latent space",
-            global_step=self.validation_epoch,  # type: ignore
-        )
+        # validation_embeddings = torch.concat(self.validation_outputs["latent"], dim=0)
+        # embeddings_concatenated: Tensor = rearrange(validation_embeddings, "b d l -> (b l) d")
+        # assert len(validation_embeddings.shape) == 3, f"got unexpected embedding shape: {validation_embeddings.shape}"
+        # self.logger.experiment.add_embedding(  # type: ignore
+        #     embeddings_concatenated.cpu().numpy(),
+        #     tag="latent space",
+        #     global_step=self.validation_epoch,  # type: ignore
+        # )
+
+        # unconditional generation eval
+
+        if self.fixed_length is not None and self.test_set_path is not None:
+            assert self.audio_channels == 1, "unconditional generation is supported only for mono audio because of CLAP embeddings being used"
+            target_generation_path = Path(EVAL_WORKDIR) / "unconditional_generation" / f"{Path(self.logger.log_dir).parent.name}_{Path(self.logger.log_dir).name}" / f"val{self.validation_epoch}"
+            generated_audio = generate_with_model(self, 100, self.latent_size)
+            save_generated_audio(generated_audio, target_generation_path, SAMPLING_RATE)
+
+            # these are only used for KID, as fadtk calculates its own embeddings
+            # TODO optimize this
+
+            if int(torch.__version__[0]) >= 2:  # the CLAP module requires torch>=2.1
+                target_embedding_path = f"{str(target_generation_path)}_embeddings"
+                reference_embedding_path = f"{self.test_set_path}_embeddings"
+
+                if not Path(target_embedding_path).exists():
+                    target_embeddings = embed_directory(target_generation_path, self.fixed_length / SAMPLING_RATE)
+                    save_audio_tensor(target_embeddings, target_embedding_path)
+                if not Path(reference_embedding_path).exists():
+                    reference_embeddings = embed_directory(self.test_set_path, self.fixed_length / SAMPLING_RATE)
+                    save_audio_tensor(reference_embeddings, reference_embedding_path)
+
+                kid_score = kid_for_serialized_embeddings(reference_embedding_path)
+                fad_score = fad(self.test_set_path, str(target_generation_path))
+                self.log("validation_KID", kid_score)
+                self.log("validation_FAD", fad_score)
+
+        # reset
 
         self.validation_outputs["audio"] = []
         self.validation_outputs["latent"] = []
@@ -785,3 +823,31 @@ class VAE(pl.LightningModule):
             ) ** (1./2)
 
             self.log("grad_norm", grad_norm)
+
+
+def _random_z(n: int, latent_size: int, device: torch.device) -> Tensor:
+    return torch.distributions.Normal(
+        torch.zeros(size=(n, latent_size, 1)),
+        torch.ones(size=(n, latent_size, 1)),
+    ).sample().to(device)
+
+
+def _iterate_in_batches(x: Tensor, batch_size: int) -> Iterable[Tensor]:
+    for idx in range(0, x.shape[0], batch_size):
+        yield x[idx:idx + batch_size]
+
+
+def generate_with_model(
+    model: VAE,
+    count: int,
+    latent_size: int,
+    batch_size: int = 8,
+) -> Tensor:
+    generated_audio_list = []
+    with torch.no_grad():
+        z = _random_z(count, latent_size, model.device)
+        for z_batch in _iterate_in_batches(z, batch_size=batch_size):
+            generated = model._join_bands(model.decoder(z_batch))
+            generated_audio_list.append(generated)
+    
+    return torch.concat(generated_audio_list, dim=0)

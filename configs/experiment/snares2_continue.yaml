@@ -1,0 +1,8 @@
+# @package _global_
+
+defaults:
+  - snares2
+
+checkpoint_path: /home/jp/mgr2024/logs/snares/version_14/checkpoints/last.ckpt
+separate_run: true
+val_every: 1
