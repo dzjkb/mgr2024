@@ -3,6 +3,7 @@ from typing import Any
 
 from attrs import frozen
 import pytorch_lightning as pl
+from lightning.pytorch.profilers import PyTorchProfiler
 
 
 @frozen

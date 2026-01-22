@@ -110,14 +110,14 @@ class AudioDataset(data.Dataset[torch.Tensor]):
             _dequantize(16),
         ]
 
-        self.transforms = compose_left(
-            *[
-                _zero_pad_cut(zero_pad_cut) if zero_pad_cut is not None else _id_transform,
-                _make_stereo(),  # some of the wavs are mono
-                *augmentations,
-                _make_mono() if mono else _id_transform,
-                _cast_float(),
-            ]
+        self.transforms_pre = compose_left(
+            _zero_pad_cut(zero_pad_cut) if zero_pad_cut is not None else _id_transform,
+            _make_stereo(),  # some of the wavs are mono
+        )
+        self.transforms_post = compose_left(
+            *augmentations,
+            _make_mono() if mono else _id_transform,
+            _cast_float(),
         )
 
     def __len__(self) -> int:
@@ -129,12 +129,12 @@ class AudioDataset(data.Dataset[torch.Tensor]):
         """
 
         if index in self.files_cache:
-            return self.files_cache[index]
+            return self.transforms_post(self.files_cache[index])
 
         audio, _ = self._load_file(index)
-        transformed = self.transforms(audio)
+        transformed = self.transforms_pre(audio)
         self.files_cache[index] = transformed
-        return transformed
+        return self.transforms_post(transformed)
 
     def _load_file(self, index: int) -> tuple[torch.Tensor, int]:
         """

@@ -11,7 +11,7 @@ from .train import do_train, do_summarize,TrainingConfig
 from .model import SAMPLING_RATE
 from .evaluations.kid import kid_for_audio_directories, kid_for_serialized_tensors, kid_for_serialized_embeddings
 from .ds_utils import embed_directory as do_embed_directory
-from .ds_utils import save_audio_tensor
+from .ds_utils import save_audio_tensor, get_embedding_directory
 from .configs import parse_hydra_config
 
 
@@ -157,6 +157,24 @@ def calculate_kid(reference_set: str, target_set: str, format: str, data_length:
     print("==========================")
     print(f"kid = {kid:.8f}")
     print("==========================")
+
+
+@jpmgr.command()
+@click.option("--reference_set", type=click.Path())
+@click.option("--target_dir", type=click.Path())
+@click.option("--data_length", type=float)
+def calculate_kid_recursive(reference_set: str, target_dir: str, data_length: float) -> None:
+    assert data_length is not None, "data_length is required"
+
+    target_dirs = [d for d in Path(target_dir).iterdir() if d.is_dir()]
+    embedding_dirs = [get_embedding_directory(str(d), data_length) for d in target_dirs]
+    reference_embeddings = get_embedding_directory(reference_set, data_length)
+    kids = [kid_for_serialized_embeddings(reference_embeddings, str(d), data_length) for d in embedding_dirs]
+
+    for d, k in zip(target_dirs, kids):
+        print("==========================")
+        print(f"kid for {d.name} = {k:.8f}")
+        print("==========================")
 
 
 @jpmgr.command()

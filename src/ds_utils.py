@@ -116,3 +116,13 @@ def embed_directory(path: str, target_length_seconds: float) -> AudioTensor:
     assert audio_tensor.data.shape[1] == 1, "clap embeddings accept only mono audio"
     embeddings = get_embeddings(audio_tensor.data.squeeze(1))
     return evolve(audio_tensor, data=embeddings)
+
+
+def get_embedding_directory(path: str, target_length_seconds: float) -> str:
+    target_embedding_path = f"{path}_embeddings"
+
+    if not Path(target_embedding_path).exists():
+        target_embeddings = embed_directory(path, target_length_seconds)
+        save_audio_tensor(target_embeddings, target_embedding_path)
+    
+    return target_embedding_path

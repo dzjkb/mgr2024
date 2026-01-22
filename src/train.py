@@ -56,11 +56,13 @@ def do_train(cfg: TrainingConfig) -> None:
         batch_size=cfg.batch_size,
         shuffle=True,
         num_workers=4,
+        pin_memory=True,
     )
     val_set = DataLoader(
         AudioDataset(Path(cfg.val_dataset_path), **asdict(cfg.dataset.val_overrides())),
         batch_size=cfg.batch_size,
         num_workers=4,
+        pin_memory=True,
     )
 
     if cfg.checkpoint_path is not None and not cfg.separate_run:
@@ -74,7 +76,7 @@ def do_train(cfg: TrainingConfig) -> None:
         accelerator=cfg.device,
         devices=1,
         callbacks=init_callbacks(cfg.callbacks),
-        profiler="simple",
+        profiler="pytorch",
         enable_progress_bar=True,
         check_val_every_n_epoch=cfg.val_every,
     )

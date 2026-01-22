@@ -23,7 +23,7 @@ from .pqmf import PQMF
 from .normalizing_flows import RealNVP
 from .evaluations.kid import kid_for_serialized_embeddings, SAMPLING_RATE
 from .evaluations.fad import fad
-from .ds_utils import embed_directory, save_audio_tensor, save_generated_audio
+from .ds_utils import get_embedding_directory, save_generated_audio
 
 SAMPLING_RATE = 48000
 EVAL_WORKDIR = "/media/Data/jp_dir/sounds/eval"
@@ -611,19 +611,35 @@ class VAE(pl.LightningModule):
 
         return gen_loss, disc_loss, feature_loss
 
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor, dict[str, Tensor]]:
-        x_mb = self._split_bands(x)
-        mean, logvar = self.encoder(x_mb)
-        z = self._reparametrize(mean, logvar)
+    def forward(self, x: Tensor, batch_idx: int | None = None) -> tuple[Tensor, Tensor, Tensor, dict[str, Tensor]]:
+        if self.discriminator_warmup_phase or self._update_discriminator(batch_idx):
+            with torch.no_grad():
+                x_mb = self._split_bands(x)
+                mean, logvar = self.encoder(x_mb)
+                z = self._reparametrize(mean, logvar)
 
-        if self.posterior is not None:
-            z_flow, log_det = self.posterior(z)
+                if self.posterior is not None:
+                    z_flow, log_det = self.posterior(z)
+                else:
+                    z_flow = z
+                    log_det = torch.zeros((x.shape[0],))
+
+                x_hat_mb = self.decoder(z_flow)
+                x_hat = self._join_bands(x_hat_mb)
         else:
-            z_flow = z
-            log_det = torch.zeros((x.shape[0],))
+            # TODO: don't repeat the code
+            x_mb = self._split_bands(x)
+            mean, logvar = self.encoder(x_mb)
+            z = self._reparametrize(mean, logvar)
 
-        x_hat_mb = self.decoder(z_flow)
-        x_hat = self._join_bands(x_hat_mb)
+            if self.posterior is not None:
+                z_flow, log_det = self.posterior(z)
+            else:
+                z_flow = z
+                log_det = torch.zeros((x.shape[0],))
+
+            x_hat_mb = self.decoder(z_flow)
+            x_hat = self._join_bands(x_hat_mb)
 
         losses_dict = {
             "latent_loss": (
@@ -640,7 +656,7 @@ class VAE(pl.LightningModule):
             + self.reconstruction_loss_weight * losses_dict["multiband_reconstruction_loss"]
         )
 
-        if self.discrimination_phase:
+        if self.discriminator_warmup_phase or self._update_discriminator(batch_idx):
             adv_loss, disc_loss, feature_loss = self._discrimination(x, x_hat)
             losses_dict.update({
                 "adversarial_loss": adv_loss,
@@ -658,13 +674,21 @@ class VAE(pl.LightningModule):
                 total_loss += self.prior_loss_weight * prior_loss
 
         return x_hat, z, total_loss, losses_dict
+    
+    # def on_after_batch_transfer(self, batch: tuple[Tensor, Tensor], dataloader_idx: int) -> tuple[Tensor, Tensor]:
+    #     x, y = batch
+    #     if self.trainer.training:
+    #         x_augmented = self.augmentations(x)
+    #     else:
+    #         x_augmented = x
+    #     return x_augmented, y
 
     def training_step(self, batch: Tensor, batch_idx: int) -> None:
         self.encoder.freeze(self.discrimination_phase)
         if self.posterior is not None:
             self.posterior.freeze(self.discrimination_phase)
         gen_opt, disc_opt = self.optimizers()  # type: ignore[attr-defined]
-        _, _, gen_loss, losses_dict = self.forward(batch)
+        _, _, gen_loss, losses_dict = self.forward(batch, batch_idx=batch_idx)
 
         self.log("loss/train_loss", gen_loss, on_step=False, on_epoch=True)
         for loss_key, value_tensor in losses_dict.items():
@@ -673,18 +697,18 @@ class VAE(pl.LightningModule):
 
         if self.discriminator_warmup_phase or self._update_discriminator(batch_idx):
             disc_opt.zero_grad()
-            losses_dict["discriminator_loss"].backward()
+            self.manual_backward(losses_dict["discriminator_loss"])
             disc_opt.step()
         else:
             lr_schedule = self.lr_schedulers()
             gen_opt.zero_grad()
-            gen_loss.backward()
+            self.manual_backward(gen_loss)
             gen_opt.step()
             lr_schedule.step()
 
-    def _update_discriminator(self, batch_idx: int) -> bool:
+    def _update_discriminator(self, batch_idx: int | None) -> bool:
         update_discriminator_every = 4
-        return (batch_idx % update_discriminator_every == 0) and self.discrimination_phase
+        return (batch_idx is None  or (batch_idx % update_discriminator_every == 0)) and self.discrimination_phase
 
     def validation_step(self, batch: Tensor, batch_idx: int) -> None:
         reconstructed_audio, z, loss, losses_dict = self.forward(batch)
@@ -773,17 +797,10 @@ class VAE(pl.LightningModule):
             # TODO optimize this
 
             if int(torch.__version__[0]) >= 2:  # the CLAP module requires torch>=2.1
-                target_embedding_path = f"{str(target_generation_path)}_embeddings"
-                reference_embedding_path = f"{self.test_set_path}_embeddings"
+                target_embedding_path = get_embedding_directory(str(target_generation_path), self.fixed_length / SAMPLING_RATE)
+                reference_embedding_path = get_embedding_directory(self.test_set_path, self.fixed_length / SAMPLING_RATE)
 
-                if not Path(target_embedding_path).exists():
-                    target_embeddings = embed_directory(target_generation_path, self.fixed_length / SAMPLING_RATE)
-                    save_audio_tensor(target_embeddings, target_embedding_path)
-                if not Path(reference_embedding_path).exists():
-                    reference_embeddings = embed_directory(self.test_set_path, self.fixed_length / SAMPLING_RATE)
-                    save_audio_tensor(reference_embeddings, reference_embedding_path)
-
-                kid_score = kid_for_serialized_embeddings(reference_embedding_path)
+                kid_score = kid_for_serialized_embeddings(reference_embedding_path, target_embedding_path)
                 fad_score = fad(self.test_set_path, str(target_generation_path))
                 self.log("validation_KID", kid_score)
                 self.log("validation_FAD", fad_score)

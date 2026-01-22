@@ -3,6 +3,16 @@
 defaults:
   - snares2
 
+callbacks:
+  encoder_training_len: 80000
+  discriminator_warmup_len: 10000
+  target_latent_weight: 0.0001
+  latent_weight_warmup_length: 20000
+
+model:
+  feature_loss_weight: 5.0
+  adversarial_loss_weight: 0.1
+  discriminator_lr: 0.0008
+
 checkpoint_path: /home/jp/mgr2024/logs/snares/version_14/checkpoints/last.ckpt
 separate_run: true
-val_every: 1
