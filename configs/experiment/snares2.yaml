@@ -4,13 +4,12 @@ defaults:
   - override /callbacks: graz_v0
   - override /model: small_capacity_4dilations_ravestrides
   - override /dataset: snares
-  - override /noise: noise2
 
 callbacks:
   encoder_training_len: 150000
   discriminator_warmup_len: 10000
   target_latent_weight: 0.0001
-  latent_weight_warmup_length: 20000
+  latent_weight_warmup_length: 60000
 
 dataset:
   zero_pad_cut: 49152
@@ -18,18 +17,20 @@ dataset:
   mono: true
 
 model:
+  initial_lr: 0.0001
+  final_lr: 0.00001
   lr_decay_steps: 100000
   activation: relu
   mono: true
   fixed_length: 49152
   nf_prior_layers: null
   nf_posterior_layers: null
-  monitor_grad_norm: false
-  feature_loss_weight: 5.0
-  adversarial_loss_weight: 0.5
-  discriminator_lr: 0.0005
+  monitor_grad_norm: true
+  feature_loss_weight: 20.0
+  adversarial_loss_weight: 1.0
+  discriminator_lr: 0.0002
 
 log_dir: logs
 experiment_name: snares
 batch_size: 6
-epochs: 1300
+epochs: 3000

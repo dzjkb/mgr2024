@@ -12,7 +12,7 @@ from random import random
 
 import numpy as np
 from scipy.signal import lfilter
-from torch import Tensor, tensor
+from torch import Tensor, from_numpy
 
 def _random_angle(min_f: int = 20, max_f: int = 8000, sr: int = 24000) -> float:
     min_f = np.log(min_f)
@@ -32,4 +32,9 @@ def _pole_to_z_filter(omega: float, amplitude: float = .9) -> tuple[list[float],
 def random_phase_mangle(x: Tensor, min_f: int, max_f: int, amp: float, sr: int) -> Tensor:
     angle = _random_angle(min_f, max_f, sr)
     b, a = _pole_to_z_filter(angle, amp)
-    return tensor(lfilter(b, a, x))
+
+    x_npy = x.numpy()
+    filtered = lfilter(b, a, x_npy)
+    result = from_numpy(filtered).clone()
+    del filtered
+    return result.to(x.dtype)

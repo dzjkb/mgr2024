@@ -1,0 +1,38 @@
+
+# @package _global_
+
+defaults:
+  - override /callbacks: graz_v0
+  - override /model: ravestrides_96c_512l
+  - override /dataset: soft_channel
+
+callbacks:
+  encoder_training_len: 80000
+  discriminator_warmup_len: 4000
+  target_latent_weight: 0.0001
+  latent_weight_warmup_length: 30000
+
+dataset:
+  augment: true
+  mono: true
+
+model:
+  initial_lr: 0.0001
+  final_lr: 0.00001
+  lr_decay_steps: 100000
+  activation: relu
+  mono: true
+  fixed_length: 98304
+  nf_prior_layers: null
+  nf_posterior_layers: null
+  monitor_grad_norm: true
+  feature_loss_weight: 20.0
+  adversarial_loss_weight: 1.0
+  discriminator_lr: 0.0002
+
+train_dataset_path: data/ambient/soft_channel_train
+val_dataset_path: data/ambient/soft_channel_val
+log_dir: logs
+experiment_name: soft_channel
+batch_size: 10
+epochs: 3000

@@ -1,0 +1,7 @@
+name: mgr-cu13
+channels:
+- defaults
+dependencies:
+  - python=3.10
+  - pip
+  - ffmpeg<8

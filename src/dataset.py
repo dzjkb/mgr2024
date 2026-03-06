@@ -9,7 +9,6 @@ from attrs import frozen, evolve
 from torch.nn import functional as F
 from torch.utils import data
 from tqdm import tqdm
-from toolz import compose_left
 
 from .augmentations import random_phase_mangle
 from .ds_utils import make_stereo, make_mono
@@ -81,6 +80,7 @@ class DatasetConfig:
     zero_pad_cut: int | None
     augment: bool
     mono: bool
+    caching: bool
 
     def val_overrides(self) -> "DatasetConfig":
         return evolve(self, augment=False)
@@ -95,12 +95,14 @@ class AudioDataset(data.Dataset[torch.Tensor]):
         zero_pad_cut: int | None = None,
         augment: bool = False,
         mono: bool = False,
+        caching: bool = True,
     ) -> None:
         self.dataset_dir = dataset_dir
         self.name = dataset_dir.name
         self.expected_sample_rate = expected_sample_rate
         self.files = list(dataset_dir.glob("*.wav"))
         self.files_cache: dict[int, torch.Tensor] = dict()
+        self.caching = caching
 
         for idx in tqdm(range(len(self.files)), desc=f"validating the {dataset_dir.name} dataset"):
             assert self._validate(*self._load_file(idx)), f"invalid file: {self.files[idx]}"
@@ -110,15 +112,22 @@ class AudioDataset(data.Dataset[torch.Tensor]):
             _dequantize(16),
         ]
 
-        self.transforms_pre = compose_left(
+        self.transforms_pre = [
             _zero_pad_cut(zero_pad_cut) if zero_pad_cut is not None else _id_transform,
             _make_stereo(),  # some of the wavs are mono
-        )
-        self.transforms_post = compose_left(
+        ]
+        self.transforms_post = [
             *augmentations,
             _make_mono() if mono else _id_transform,
             _cast_float(),
-        )
+        ]
+
+    @staticmethod
+    def _apply_transforms(x: torch.Tensor, ts: list[TransformType]) -> torch.Tensor:
+        res = x
+        for t in ts:
+            res = t(res)
+        return res
 
     def __len__(self) -> int:
         return len(self.files)
@@ -128,13 +137,14 @@ class AudioDataset(data.Dataset[torch.Tensor]):
         returns a (channels, samples) length tensor
         """
 
-        if index in self.files_cache:
-            return self.transforms_post(self.files_cache[index])
+        with torch.no_grad():
+            if self.caching and index in self.files_cache:
+                return self._apply_transforms(self.files_cache[index], self.transforms_post)
 
-        audio, _ = self._load_file(index)
-        transformed = self.transforms_pre(audio)
-        self.files_cache[index] = transformed
-        return self.transforms_post(transformed)
+            audio, _ = self._load_file(index)
+            transformed = self._apply_transforms(audio, self.transforms_pre)
+            if self.caching: self.files_cache[index] = transformed
+            return self._apply_transforms(transformed, self.transforms_post)
 
     def _load_file(self, index: int) -> tuple[torch.Tensor, int]:
         """

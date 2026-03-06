@@ -6,6 +6,7 @@ defaults:
 
 train_dataset_path: data/snares1_train
 val_dataset_path: data/snares1_val
+test_set_path: null
 log_dir: logs/test
 experiment_name: test
 epochs: 600

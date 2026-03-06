@@ -81,6 +81,7 @@ def resample_dataset(in_dir: str, out_dir: str, in_sample_rate: int) -> None:
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
     resample = ta.transforms.Resample(in_sample_rate, SAMPLING_RATE)
+    # TODO: use https://github.com/Textualize/rich
     for f in tqdm(Path(in_dir).glob("*.wav")):
         audio, sr = ta.load(f)
         if sr == in_sample_rate:

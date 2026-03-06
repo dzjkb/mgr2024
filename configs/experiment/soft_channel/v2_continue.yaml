@@ -1,0 +1,14 @@
+# @package _global_
+
+defaults:
+  - soft_channel/v2
+
+callbacks:
+  encoder_training_len: 250000
+  discriminator_warmup_len: 15000
+  target_latent_weight: 0.0001
+  latent_weight_warmup_length: 50000
+
+batch_size: 3
+checkpoint_path: /home/jp/mgr2024/logs/soft_channel_2/version_0/checkpoints/last.ckpt
+separate_run: true
