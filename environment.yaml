@@ -4,4 +4,6 @@ channels:
 dependencies:
   - python=3.10
   - pip
-  - ffmpeg<8
+  - ffmpeg<9
+variables:
+  UV_PROJECT_ENVIRONMENT: "'${CONDA_PREFIX}'"
