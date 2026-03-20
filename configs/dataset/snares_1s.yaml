@@ -1,0 +1,5 @@
+zero_pad_cut: 49152
+expected_sample_rate: 48000
+augment: true
+mono: true
+caching: false

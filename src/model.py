@@ -1,5 +1,5 @@
 from math import floor, ceil, prod
-from typing import cast, Mapping, Any, Iterable
+from typing import cast, Mapping, Any, Iterable, TypeAlias, Literal
 from pathlib import Path
 
 from attrs import frozen, asdict
@@ -94,6 +94,7 @@ class ModelConfig:
     nf_prior_layers: int | None = None
     prior_loss_weight: float = 1.0
     grad_clip: float | None = None,
+    reduction_method: str | None = None
 
     def __post_init__(self) -> None:
         assert len(self.dilations) == len(
@@ -190,6 +191,56 @@ class _TemporalUpsampling(nn.Module):
         return x_reshaped
 
 
+class _TemporalConvReduction(nn.Module):
+    """
+    given a tensor of shape (batch, channels, length) reduces the last dimension to 1
+    by applying a conv layer with a very large kernel size
+
+    note: the last dimension is kept as a size 1 dimension for consistency
+    """
+
+    def __init__(self, in_length: int, channels: int, do_weight_norm: bool):
+        super().__init__()
+
+        def _weightnorm(m: nn.Module) -> nn.Module:
+            return m if not do_weight_norm else weight_norm(m)
+
+        self.conv = _weightnorm(nn.Conv1d(channels, channels, kernel_size=in_length))
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.conv(x)
+
+
+class _TemporalConvUpsampling(nn.Module):
+    """
+    given a tensor of shape (batch, channels, 1) upsamples the last dimension to `out_length`
+    by applying a transposed conv layer
+    """
+
+    def __init__(self, in_length: int, channels: int, do_weight_norm: bool):
+        super().__init__()
+
+        def _weightnorm(m: nn.Module) -> nn.Module:
+            return m if not do_weight_norm else weight_norm(m)
+
+        self.conv = _weightnorm(nn.ConvTranspose1d(channels, channels, kernel_size=in_length))
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.conv(x)
+
+
+_LatentReductionT: TypeAlias = Literal["fully_connect", "conv"]
+_DEFAULT_REDUCTION: str = "fully_connected"
+_single_latent_reduction_methods: dict[_LatentReductionT, type[nn.Module]] = {
+    "fully_connected": _TemporalReduction,
+    "conv": _TemporalConvReduction,
+}
+_single_latent_upsampling_methods: dict[_LatentReductionT, type[nn.Module]] = {
+    "fully_connected": _TemporalUpsampling,
+    "conv": _TemporalConvUpsampling,
+}
+
+
 
 # ================================== ENCODER =============================================
 
@@ -255,6 +306,7 @@ class Encoder(nn.Module):
         n_bands: int,
         audio_channels: int,
         fixed_length: int | None = None,
+        reduction_method: str | None = None,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -275,9 +327,10 @@ class Encoder(nn.Module):
             if fixed_length is None
             else [
                 nn.Tanh(),
-                _TemporalReduction(fixed_length // (prod(strides) * n_bands), latent_size * 2, do_weight_norm=do_weight_norm),
+                _single_latent_reduction_methods[reduction_method or _DEFAULT_REDUCTION](
+                    fixed_length // (prod(strides) * n_bands), latent_size * 2, do_weight_norm=do_weight_norm
+                ),
             ]
-            # else [nn.Tanh(), _MeanReduction()]
         )
 
         self.net = nn.Sequential(
@@ -384,6 +437,7 @@ class Decoder(nn.Module):
         n_bands: int,
         audio_channels: int,
         fixed_length: int | None = None,
+        reduction_method: str | None = None,
     ):
         super().__init__()
         assert len(dilations) == len(strides)
@@ -404,7 +458,9 @@ class Decoder(nn.Module):
             []
             if fixed_length is None
             else [
-                _TemporalUpsampling(fixed_length // (prod(strides) * n_bands), latent_size, do_weight_norm=do_weight_norm),
+                _single_latent_upsampling_methods[reduction_method or _DEFAULT_REDUCTION](
+                    fixed_length // (prod(strides) * n_bands), latent_size, do_weight_norm=do_weight_norm
+                ),
                 nn.Tanh(),
             ]
         )
@@ -496,6 +552,7 @@ class VAE(pl.LightningModule):
         prior_loss_weight: float = 1.0,
         test_set_path: str | None = None,
         grad_clip: float | None = None,
+        reduction_method: str | None = None,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -516,6 +573,7 @@ class VAE(pl.LightningModule):
             n_bands=n_bands,
             audio_channels=self.audio_channels,
             fixed_length=fixed_length,
+            reduction_method=reduction_method,
         )
         self.posterior = RealNVP(latent_size=latent_size, num_layers=nf_posterior_layers) if nf_posterior_layers is not None else None
         self.prior = RealNVP(latent_size=latent_size, num_layers=nf_prior_layers) if nf_prior_layers is not None else None
@@ -531,6 +589,7 @@ class VAE(pl.LightningModule):
             n_bands=n_bands,
             audio_channels=self.audio_channels,
             fixed_length=fixed_length,
+            reduction_method=reduction_method,
         )
         self.pqmf = PQMF(100, n_bands, n_channels=self.audio_channels)
 
