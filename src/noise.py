@@ -1,4 +1,5 @@
 from itertools import chain
+from math import prod
 
 import torch
 from attrs import frozen
@@ -71,13 +72,11 @@ class Noise(nn.Module):
             ),
         )
 
-        self.register_buffer(
-            "frame_size", torch.prod(torch.tensor(strides))
-        )
+        self.frame_size = prod(strides)
     
     @staticmethod
     def _scale_sigmoid(x: Tensor) -> Tensor:
-        return 2 * torch.sigmoid(x.sub_(5)) ** 2.3 + 1e-7
+        return torch.pow(torch.sigmoid(x.sub_(5)), 2.3).mul_(2).add_(1e-7)
     
     @staticmethod
     def _impulse_response(magnitudes: Tensor, frame_size: int) -> Tensor:
@@ -104,7 +103,7 @@ class Noise(nn.Module):
         magnitudes = self._scale_sigmoid(self.net(x))
         irs = self._impulse_response(
             rearrange(magnitudes, "b (c filters) n_frames -> b n_frames c filters", filters=self.n_filters),
-            int(self.frame_size),
+            self.frame_size,
         )
 
         # this automatically creates a noise signal split into frames of the same length as a single impulse response

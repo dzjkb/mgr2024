@@ -1,0 +1,22 @@
+capacity: 80
+latent_size: 256
+dilations:
+  - [1, 3, 9]
+  - [1, 3, 9]
+  - [1, 3, 9]
+  - [1, 3]
+strides: [8, 8, 4, 4] 
+lr_decay_steps: 200000
+discriminator_lr: 0.0001
+initial_lr: 0.0001
+final_lr: 0.00002
+
+feature_loss_weight: 20.0
+adversarial_loss_weight: 1.0
+activation: relu
+reduction_method: conv
+n_bands: 16
+
+nf_prior_layers: null
+nf_posterior_layers: null
+monitor_grad_norm: false

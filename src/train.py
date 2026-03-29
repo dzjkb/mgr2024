@@ -14,6 +14,7 @@ from pytorch_lightning.utilities.model_summary import summarize
 from attrs import frozen, asdict
 from torch.utils.data import DataLoader
 from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.profilers import PyTorchProfiler
 
 from .model import VAE, ModelConfig
 from .dataset import AudioDataset, DatasetConfig
@@ -204,6 +205,11 @@ def do_train(cfg: TrainingConfig) -> None:
     else:
         logger = TensorBoardLogger(save_dir=cfg.log_dir, name=cfg.experiment_name)
     _log_config(cfg, f"{logger.log_dir}/config.yaml")
+
+    # profiler = PyTorchProfiler(
+    #     schedule=torch.profiler.schedule(wait=100, warmup=1, active=5, repeat=3),
+    #     with_stack=True,
+    # )
     trainer = pl.Trainer(
         logger=logger,
         max_epochs=cfg.epochs,
@@ -220,6 +226,6 @@ def do_train(cfg: TrainingConfig) -> None:
     trainer.fit(model, train_set, val_set, **checkpoint_kwarg)  # type: ignore
 
 
-def do_summarize(cfg: TrainingConfig) -> None:
+def do_summarize(cfg: TrainingConfig, depth: int = 1) -> None:
     model = VAE(noise_config=cfg.noise, **asdict(cfg.model))
-    print(summarize(model))
+    print(summarize(model, max_depth=depth))

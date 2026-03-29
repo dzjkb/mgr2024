@@ -2,35 +2,25 @@
 
 defaults:
   - override /callbacks: graz_v0
-  - override /model: ravestrides_96c_256l
+  - override /model: five_reductions_96c_256l
   - override /dataset: vctk_words
 
 callbacks:
-  encoder_training_len: 1000000
-  discriminator_warmup_len: 1000
+  encoder_training_len: 750000
+  discriminator_warmup_len: 50000
   target_latent_weight: 0.0001
   latent_weight_warmup_length: 60000
 
 model:
-  initial_lr: 0.0001
-  final_lr: 0.00005
-  lr_decay_steps: 100000
-  activation: relu
   mono: true
   fixed_length: 49152
-  nf_prior_layers: null
-  nf_posterior_layers: null
-  monitor_grad_norm: false
-  feature_loss_weight: 20.0
-  adversarial_loss_weight: 1.0
-  discriminator_lr: 0.0001
-  grad_clip: 100000.0
-  reduction_method: conv
 
 train_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_train
 val_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_val
+checkpoint_path: /home/jp/mgr2024/logs/vctk_words/version_5/checkpoints/last.ckpt
+separate_run: false
 log_dir: logs
 experiment_name: vctk_words
 batch_size: 12
-epochs: 300
+epochs: 150
 val_every: 1

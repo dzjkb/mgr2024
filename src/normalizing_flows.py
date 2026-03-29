@@ -1,3 +1,5 @@
+import contextlib
+
 import normflows as nf
 import torch
 from torch import nn, Tensor
@@ -25,20 +27,18 @@ class RealNVP(nn.Module):
         ]
 
         self.flows = nn.ModuleList(flows)
-        self.register_buffer("freeze_weights", torch.tensor(0))
+        self.freeze_weights = False
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
-        ld = torch.zeros(x.shape[0], device=x.device)
-        for flow in self.flows:
-            x, ld_ = flow(x.squeeze())
-            ld += ld_
+        ctx = torch.no_grad() if self.freeze_weights else contextlib.nullcontext()
+        with ctx:
+            ld = x.new_zeros(x.shape[0])
+            for flow in self.flows:
+                x, ld_ = flow(x.squeeze())
+                ld += ld_
 
-        x_unsqueezed = x[..., None]
-        if self.freeze_weights:  # type: ignore[has-type]
-            x_unsqueezed = x_unsqueezed.detach()
-            ld = ld.detach()
-
-        return x_unsqueezed, ld
+            x_unsqueezed = x[..., None]
+            return x_unsqueezed, ld
 
     def kld(self, x: Tensor, base_distribution: torch.distributions.Distribution) -> Tensor:
         # see https://github.com/VincentStimper/normalizing-flows/blob/master/normflows/core.py - forward_kld
@@ -51,4 +51,4 @@ class RealNVP(nn.Module):
         return -torch.mean(log_q)
 
     def freeze(self, value: bool) -> None:
-        self.freeze_weights = torch.tensor(int(value), device=self.freeze_weights.device)  # type: ignore[has-type]
+        self.freeze_weights = value

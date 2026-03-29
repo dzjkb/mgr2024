@@ -22,23 +22,39 @@ class MultiScaleSTFTLoss(nn.Module):
             for w in window_sizes
         )
 
-        self.eps = torch.tensor(1e-7)
+    # def _multiscale_stft(self, x: Tensor) -> Iterable[Tensor]:
+    #     x_: Tensor = rearrange(x, "b c t -> (b c) t")
+    #     # r.i.p. typing
+    #     return juxt(*self.stfts)(x_)
 
-    def _multiscale_stft(self, x: Tensor) -> Iterable[Tensor]:
-        x_: Tensor = rearrange(x, "b c t -> (b c) t")
-        # r.i.p. typing
-        return juxt(*self.stfts)(x_)
+    # def forward(self, x: Tensor, y: Tensor) -> Tensor:
+    #     x_spect = self._multiscale_stft(x)
+    #     y_spect = self._multiscale_stft(y)
+
+    #     loss = x.new_zeros(1)
+    #     for xs, ys in zip(x_spect, y_spect):
+    #         logx = torch.log(xs + 1e-7)
+    #         logy = torch.log(ys + 1e-7)
+
+    #         # TODO: different combinations of these distances?
+    #         lin_distance = _l2_relative_distance(xs, ys)
+    #         log_distance = _l1_distance(logx, logy)
+
+    #         loss += lin_distance + log_distance
+
+    #     return loss
 
     def forward(self, x: Tensor, y: Tensor) -> Tensor:
-        x_spect = self._multiscale_stft(x)
-        y_spect = self._multiscale_stft(y)
+        loss = x.new_zeros(1)
+        x_ = rearrange(x, "b c t -> (b c) t")
+        y_ = rearrange(y, "b c t -> (b c) t")
 
-        loss = torch.tensor(0.0, device=x.device)
-        for xs, ys in zip(x_spect, y_spect):
-            logx = torch.log(xs + self.eps)
-            logy = torch.log(ys + self.eps)
+        for stft in self.stfts:
+            xs = stft(x_)
+            ys = stft(y_)
+            logx = torch.log(xs + 1e-7)
+            logy = torch.log(ys + 1e-7)
 
-            # TODO: different combinations of these distances?
             lin_distance = _l2_relative_distance(xs, ys)
             log_distance = _l1_distance(logx, logy)
 
@@ -48,23 +64,26 @@ class MultiScaleSTFTLoss(nn.Module):
 
 
 def _l2_relative_distance(x: Tensor, y: Tensor, eps: float = 1e-7) -> Tensor:
-    return (torch.pow(x - y, 2).mean() + eps) / (torch.pow(y, 2).mean() + eps)
+    return (torch.pow(x.sub(y), 2).mean() + eps) / (torch.pow(y, 2).mean() + eps)
 
 
 def _l1_distance(x: Tensor, y: Tensor) -> Tensor:
-    return (x - y).abs().mean()
+    return x.sub(y).abs().mean()
 
 
 def feature_matching_loss(real_fmaps: Tensor, fake_fmaps: Tensor) -> Tensor:
-    return cast(
-        Tensor,
-        sum(
-            [_l1_distance(real, fake) for real, fake in zip(real_fmaps, fake_fmaps)]
-        ) / len(real_fmaps),
-    )
+    return torch.stack([_l1_distance(real, fake) for real, fake in zip(real_fmaps, fake_fmaps)]).mean()
 
 
 def hinge_gan_losses(score_real:Tensor, score_fake: Tensor) -> tuple[Tensor, Tensor]:
-    discriminator_loss = (torch.relu(cast(Tensor, 1 - score_real)) + torch.relu(cast(Tensor, 1 + score_fake))).mean()
+    discriminator_loss = (
+        torch.relu(cast(Tensor, 1 - score_real))
+        + torch.relu(cast(Tensor, 1 + score_fake))
+    ).mean()
     generator_loss = -score_fake.mean()
     return discriminator_loss, generator_loss
+
+
+if torch.cuda.is_available() and (torch.cuda.get_device_capability()[0] >= 7):
+    feature_matching_loss = torch.compile(feature_matching_loss)
+    hinge_gan_losses = torch.compile(hinge_gan_losses)

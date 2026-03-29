@@ -33,12 +33,16 @@ def train(config: str) -> None:
 
 @jpmgr.command()
 @click.option("--config", default="configs/experiment/empty.yaml", type=click.Path())
-def summarize(config: str) -> None:
+@click.option("--depth", type=int)
+def summarize(config: str, depth: int | None) -> None:
     cfg = structure(
         parse_hydra_config("configs/", config),
         TrainingConfig,
     )
-    do_summarize(cfg)
+    if depth:
+        do_summarize(cfg, depth=depth)
+    else:
+        do_summarize(cfg)
 
 
 @jpmgr.command()
