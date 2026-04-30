@@ -2,7 +2,7 @@
 
 defaults:
   - override /callbacks: graz_v0
-  - override /model: vctk_words_v6
+  - override /model: vctk_words_v7
   - override /dataset: vctk_words
 
 callbacks:

@@ -2,7 +2,7 @@
 
 defaults:
   - override /callbacks: graz_v0
-  - override /model: vctk_words_v6
+  - override /model: vctk_words_v7
   - override /dataset: vctk_words
 
 callbacks:
@@ -14,11 +14,17 @@ callbacks:
 model:
   mono: true
   fixed_length: 49152
+  feature_loss_weight: 20.0
+  adversarial_loss_weight: 1.0
+  final_lr: 0.00005
+  discriminator_lr: 0.0002
 
 train_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_train
 val_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_val
+checkpoint_path: /home/jp/mgr2024/logs/vctk_words/version_9/checkpoints/last.ckpt
+separate_run: true
 log_dir: logs
 experiment_name: vctk_words
-batch_size: 12
+batch_size: 10
 epochs: 100
 val_every: 1

@@ -2,14 +2,14 @@
 
 defaults:
   - override /callbacks: graz_v0
-  - override /model: vctk_words_v6
+  - override /model: vctk_words_v8
   - override /dataset: vctk_words
 
 callbacks:
-  encoder_training_len: 750000
-  discriminator_warmup_len: 10000
+  encoder_training_len: 1000000
+  discriminator_warmup_len: 0
   target_latent_weight: 0.0001
-  latent_weight_warmup_length: 60000
+  latent_weight_warmup_length: 300000
 
 model:
   mono: true

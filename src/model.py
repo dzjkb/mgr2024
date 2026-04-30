@@ -29,6 +29,7 @@ from .ds_utils import get_embedding_directory, save_generated_audio
 
 SAMPLING_RATE = 48000
 EVAL_WORKDIR = "/media/Data/jp_dir/sounds/eval"
+LOG_EVERY_TRAIN_STEP = 50  # log every n-th step to limit GPU memory syncs and speed up training
 
 
 def _get_padding(kernel_size: int, dilation: int) -> int:
@@ -406,7 +407,7 @@ class _DecoderBlock(nn.Module):
     ):
         super().__init__()
         # again, for simplicity - this will always be the case
-        assert in_channels % 2 == 0
+        assert in_channels % 2 == 0, f"_DeocderBlock got an odd number of channels: {in_channels}"
 
         def _weightnorm(m: nn.Module) -> nn.Module:
             return m if not do_weight_norm else weight_norm(m)
@@ -564,6 +565,7 @@ class VAE(pl.LightningModule):
         test_set_path: str | None = None,
         grad_clip: float | None = None,
         reduction_method: str | None = None,
+        decoder_scaling_factor: float | None = None,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -589,8 +591,8 @@ class VAE(pl.LightningModule):
         self.posterior = RealNVP(latent_size=latent_size, num_layers=nf_posterior_layers) if nf_posterior_layers is not None else None
         self.prior = RealNVP(latent_size=latent_size, num_layers=nf_prior_layers) if nf_prior_layers is not None else None
         self.decoder = Decoder(
-            start_channels=capacity * 2 ** len(strides),
-            dilations=dilations,
+            start_channels=int(capacity * (decoder_scaling_factor or 1.2)) * 2 ** len(strides),
+            dilations=dilations[::-1],
             strides=strides[::-1],
             latent_size=latent_size,
             noise_config=noise_config,
@@ -668,17 +670,18 @@ class VAE(pl.LightningModule):
         single_band_x = self.pqmf.inverse(x_rearranged)
         return cast(Tensor, rearrange(single_band_x, "(b chs) c t -> b (chs c) t", chs=self.audio_channels))
 
-    def _latent_loss(self, mean: Tensor, scale: Tensor) -> Tensor:
+    def _latent_loss(self, mean: Tensor, scale: Tensor, batch_idx: int | None = None) -> Tensor:
         std = self._std(scale)
         logvar = torch.log(std.pow(2))
         # return (mean.pow(2) + torch.exp(logvar) - logvar - 1).sum(1).mean()
 
         # don't penalize KL divergence below a certain threshold
         kl_per_dim = 0.5 * (mean.pow(2) + torch.exp(logvar) - logvar - 1)
-        # free_bits = torch.ones_like(kl_per_dim).mul_(0.5)
-        # low_thresh = torch.ones_like(kl_per_dim).mul_(0.1)
-        # self.log("debug/dims_under_free_bits_thresh", (kl_per_dim < free_bits).sum())
-        # self.log("debug/dims_under_0.1", (kl_per_dim < low_thresh).sum())
+        if batch_idx is not None and batch_idx % LOG_EVERY_TRAIN_STEP == 0:
+            free_bits = torch.ones_like(kl_per_dim).mul_(0.5)
+            self.log("debug/dims_under_free_bits_thresh", (kl_per_dim < free_bits).sum())
+            low_thresh = torch.ones_like(kl_per_dim).mul_(0.1)
+            self.log("debug/dims_under_0.1", (kl_per_dim < low_thresh).sum())
 
         # kl_limited = torch.max(kl_per_dim, free_bits)
         kl_limited = kl_per_dim.clamp(min=0.5)
@@ -717,7 +720,9 @@ class VAE(pl.LightningModule):
 
         return gen_loss, disc_loss, feature_loss
 
-    def forward(self, x: Tensor, discriminator_step: bool = False) -> tuple[Tensor, Tensor, Tensor, dict[str, Tensor]]:
+    def forward(
+        self, x: Tensor, discriminator_step: bool = False, batch_idx: int | None = None,
+    ) -> tuple[Tensor, Tensor, Tensor, dict[str, Tensor]]:
         ctx = torch.no_grad() if discriminator_step else contextlib.nullcontext()
         with ctx:
             x_mb = self._split_bands(x)
@@ -737,7 +742,7 @@ class VAE(pl.LightningModule):
         if not discriminator_step:
             losses_dict = {
                 "latent_loss": (
-                    self._latent_loss(mean, scale)
+                    self._latent_loss(mean, scale, batch_idx=batch_idx)
                     if self.posterior is None
                     else self._nf_latent_loss(z, mean, scale, z_flow, log_det)
                 ),
@@ -793,9 +798,9 @@ class VAE(pl.LightningModule):
         if self.posterior is not None:
             self.posterior.freeze(self.discrimination_phase)
         gen_opt, disc_opt = self.optimizers()  # type: ignore[attr-defined]
-        reconstructed, _, gen_loss, losses_dict = self.forward(batch, discriminator_step=is_discriminator_step)
+        reconstructed, _, gen_loss, losses_dict = self.forward(batch, discriminator_step=is_discriminator_step, batch_idx=batch_idx)
 
-        if batch_idx % 50 == 0:
+        if batch_idx % LOG_EVERY_TRAIN_STEP == 0:
             if not is_discriminator_step:
                 self.log("loss/train_loss", gen_loss.detach(), on_step=False, on_epoch=True)
             for loss_key, value_tensor in losses_dict.items():
