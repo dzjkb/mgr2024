@@ -34,4 +34,3 @@ def do_generate(
 
     audio = generate_with_model(model, count, model_config.latent_size, batch_size)
     save_generated_audio(audio, target_dir, sample_rate)
-

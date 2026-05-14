@@ -4,13 +4,14 @@
 import torch
 
 def _compute_kernel(x, y, k):
-    batch_size_x, dim_x = x.size()
-    batch_size_y, dim_y = y.size()
-    assert dim_x == dim_y
-
-    xx = x.unsqueeze(1).expand(batch_size_x, batch_size_y, dim_x)
-    yy = y.unsqueeze(0).expand(batch_size_x, batch_size_y, dim_y)
-    distances = (xx - yy).pow(2).sum(2)
+    # Pairwise squared Euclidean distances via the algebraic identity
+    # ‖x - y‖² = ‖x‖² + ‖y‖² - 2·x·yᵀ. Avoids materializing the (N, M, D)
+    # broadcast tensor that the expand+subtract approach allocates.
+    assert x.size(1) == y.size(1)
+    x_sq = (x * x).sum(dim=1, keepdim=True)         # (N, 1)
+    y_sq = (y * y).sum(dim=1, keepdim=True).t()      # (1, M)
+    distances = x_sq + y_sq - 2.0 * (x @ y.t())     # (N, M)
+    distances = distances.clamp_min(0.0)             # numerical safety
     return k(distances)
 
 def mmd(z_tilde, z, kernel='imq'):

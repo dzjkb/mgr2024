@@ -15,12 +15,20 @@ class CallbacksConfig:
     )
     encoder_training_len: int | None = None
     discriminator_warmup_len: int | None = None
+    adversarial_losses_warmup_len: int | None = None
 
 
-def init_callbacks(cfg: CallbacksConfig) -> list[pl.Callback]:
+def init_callbacks(
+    cfg: CallbacksConfig,
+    target_adversarial_loss_weight: float,
+    target_feature_loss_weight: float,
+) -> list[pl.Callback]:
     callbacks: list[pl.Callback] = [
         pl.callbacks.ModelCheckpoint(monitor="validation/validation_loss", filename="best"),
         pl.callbacks.ModelCheckpoint(save_last=True, save_top_k=0, save_on_train_epoch_end=True, save_on_exception=True),
+        pl.callbacks.ModelCheckpoint(
+            filename="end-phase1-{step}", save_top_k=1, save_on_train_epoch_end=False, every_n_train_steps=cfg.encoder_training_len
+        ),
         pl.callbacks.LearningRateMonitor(logging_interval="epoch"),
     ]
 
@@ -31,6 +39,13 @@ def init_callbacks(cfg: CallbacksConfig) -> list[pl.Callback]:
                 initial_value=cfg.initial_latent_weight,
                 target_value=cfg.target_latent_weight,
                 warmup_len=cfg.latent_weight_warmup_length,
+            )
+        )
+
+    if cfg.adversarial_losses_warmup_len:
+        callbacks.append(
+            AdversarialLossesWarmupCallback(
+                target_adversarial_loss_weight, target_feature_loss_weight, cfg.encoder_training_len, cfg.adversarial_losses_warmup_len
             )
         )
 
@@ -103,6 +118,50 @@ class EncoderTrainingPhaseCallback(pl.Callback):
             else:
                 pl_module.discriminator_warmup_phase = False  # type: ignore
         self.state["training_steps"] += 1
+
+    def state_dict(self) -> dict[str, Any]:
+        return self.state.copy()
+
+    def load_state_dict(self, state_dict: dict[str, Any]) -> None:
+        self.state.update(state_dict)
+
+
+class AdversarialLossesWarmupCallback(pl.Callback):
+
+    def __init__(
+        self,
+        target_adv_value: float,
+        target_fm_value: float,
+        phase_1_len: int,
+        warmup_len: int,
+    ) -> None:
+        super().__init__()
+        self.state = {"training_steps": 0}
+        self.warmup_len = warmup_len
+        self.initial_adv_value = 0.0
+        self.initial_fm_value = 0.0
+        self.target_adv_value = target_adv_value
+        self.target_fm_value = target_fm_value
+        self.phase_1_len = phase_1_len
+
+    def on_train_batch_start(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+        batch: Any,
+        batch_idx: int,
+    ) -> None:
+        self.state["training_steps"] += 1
+        if self.state["training_steps"] >= self.phase_1_len:
+            if self.state["training_steps"] >= self.phase_1_len + self.warmup_len:
+                pl_module.adversarial_loss_weight = self.target_adv_value  # type: ignore
+                pl_module.feature_loss_weight = self.target_fm_value  # type: ignore
+                return
+
+            steps_into_warmup = self.state["training_steps"] - self.phase_1_len
+            ratio = steps_into_warmup / self.warmup_len
+            pl_module.adversarial_loss_weight = self.target_adv_value * ratio  # type: ignore
+            pl_module.feature_loss_weight = self.target_fm_value * ratio  # type: ignore
 
     def state_dict(self) -> dict[str, Any]:
         return self.state.copy()

@@ -6,6 +6,9 @@ import torchaudio as ta
 from attrs import frozen, evolve
 from torch import Tensor
 from torch.nn import functional as F
+from torch.utils.data import DataLoader, Dataset
+from sklearn.decomposition import PCA
+from rich.progress import track
 
 from .evaluations.clap import get_embeddings, SAMPLING_RATE
 
@@ -65,7 +68,7 @@ def load_directory(path: str, target_length_seconds: float, sr: int = 48000, mon
     audio_tensor = torch.stack(
         [
             load_file(str(f), target_length_seconds=target_length_seconds, sr=sr, mono=mono)
-            for f in files
+            for f in track(files, description=f"loading audio from {path}")
         ],
         dim=0,
     )
@@ -95,10 +98,10 @@ def save_audio_tensor(t: AudioTensor, target_path: str) -> None:
 
 def load_audio_tensor(source_path: str) -> AudioTensor:
     path = Path(source_path)
-    audio_tensor = ta.load(path / "data.pt")
+    audio_tensor = torch.load(path / "data.pt", weights_only=True)
     with open(path / "metadata.json") as f:
         metadata = json.load(f)
-    
+
     return AudioTensor(
         data=audio_tensor,
         source_dir=metadata["source_dir"],
@@ -106,16 +109,55 @@ def load_audio_tensor(source_path: str) -> AudioTensor:
     )
 
 
-def embed_directory(path: str, target_length_seconds: float) -> AudioTensor:
-    audio_tensor = load_directory(
-        path,
-        target_length_seconds=target_length_seconds,
-        sr=SAMPLING_RATE,
-        mono=True,
+class _FileBatchDataset(Dataset):
+    def __init__(self, paths: list[Path], target_length_seconds: float, sr: int):
+        self._paths = paths
+        self._target_length_seconds = target_length_seconds
+        self._sr = sr
+
+    def __len__(self) -> int:
+        return len(self._paths)
+
+    def __getitem__(self, idx: int) -> Tensor:
+        # (1, T) mono → (T,) for CLAP
+        return load_file(
+            str(self._paths[idx]),
+            target_length_seconds=self._target_length_seconds,
+            sr=self._sr,
+            mono=True,
+        ).squeeze(0)
+
+
+def embed_directory(
+    path: str,
+    target_length_seconds: float,
+    batch_size: int = 128,
+    num_workers: int = 4,
+) -> AudioTensor:
+    files = [f for f in Path(path).iterdir() if f.is_file()]
+    filenames = [f.name for f in files]
+
+    ds = _FileBatchDataset(files, target_length_seconds, SAMPLING_RATE)
+    loader = DataLoader(
+        ds,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        shuffle=False,
+        pin_memory=True,
     )
-    assert audio_tensor.data.shape[1] == 1, "clap embeddings accept only mono audio"
-    embeddings = get_embeddings(audio_tensor.data.squeeze(1))
-    return evolve(audio_tensor, data=embeddings)
+
+    out: Tensor | None = None
+    offset = 0
+    for batch in track(loader, total=len(loader), description=f"embedding {path}"):
+        emb = get_embeddings(batch, batch_size=batch.shape[0])  # (B, D), CPU float32
+        if out is None:
+            out = torch.empty((len(files), emb.shape[1]), dtype=emb.dtype)
+        out[offset:offset + emb.shape[0]] = emb
+        offset += emb.shape[0]
+        del batch, emb
+
+    assert out is not None, f"no audio files found in {path}"
+    return AudioTensor(data=out, source_dir=path, filenames=filenames)
 
 
 def get_embedding_directory(path: str, target_length_seconds: float) -> str:
@@ -126,3 +168,7 @@ def get_embedding_directory(path: str, target_length_seconds: float) -> str:
         save_audio_tensor(target_embeddings, target_embedding_path)
     
     return target_embedding_path
+
+
+def pca(data: Tensor) -> Tensor:
+    return PCA(3).fit_transform(data.cpu().numpy())

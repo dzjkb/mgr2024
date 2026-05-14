@@ -154,6 +154,7 @@ class TrainingConfig:
     epochs: int
     batch_size: int
     device: str
+    clap_device: str
     checkpoint_path: str | None
     separate_run: bool | None
     val_every: int
@@ -210,12 +211,13 @@ def do_train(cfg: TrainingConfig) -> None:
     #     schedule=torch.profiler.schedule(wait=100, warmup=1, active=5, repeat=3),
     #     with_stack=True,
     # )
+    os.environ["CLAP_DEVICE"] = cfg.clap_device  # not enough space on the first device probs, shit
     trainer = pl.Trainer(
         logger=logger,
         max_epochs=cfg.epochs,
         accelerator=cfg.device,
         devices=1,
-        callbacks=init_callbacks(cfg.callbacks),
+        callbacks=init_callbacks(cfg.callbacks, cfg.model.adversarial_loss_weight, cfg.model.feature_loss_weight),
         profiler="pytorch",
         enable_progress_bar=True,
         check_val_every_n_epoch=cfg.val_every,

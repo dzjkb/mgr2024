@@ -208,9 +208,13 @@ def calculate_fad(reference_set: str, target_set: str, format: str, data_length:
 
 @jpmgr.command()
 @click.option("--audio_path", type=click.Path())
-@click.option("--target_path", type=click.Path())
 @click.option("--data_length", type=float)
-def embed_directory(audio_path: str, target_path: str, data_length: float) -> None:
+def embed_directory(audio_path: str, data_length: float) -> None:
+    target_path = f"{audio_path}_embeddings"
+    if Path(target_path).exists():
+        print(f"{target_path} already exists, aborting")
+        return
+
     embeddings = do_embed_directory(audio_path, data_length)
     save_audio_tensor(embeddings, target_path)
 

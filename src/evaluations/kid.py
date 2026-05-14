@@ -40,23 +40,16 @@ def kid_audio(set_x: torch.Tensor, set_y: torch.Tensor, batch_size: int = 5000) 
         return np.mean(mmd_distances)
 
 
-def kid_embeddings(set_x: torch.Tensor, set_y: torch.Tensor, batch_size: int = 5000) -> float:
+def kid_embeddings(set_x: torch.Tensor, set_y: torch.Tensor) -> float:
     """
-    assumes `len(set_x) <= len(set_y)`
-
-    calculates mmd's in batches of `batch_size` and then returns the average
+    computes MMD once over the full sets (no per-batch averaging — that was a
+    statistically biased RAM workaround for the old O(N*M*D) kernel).
 
     assumes `set_x` and `set_y` are already CLAP embeddings
     """
 
-    mmd_distances = []
-
-    for j in range(0, set_x.shape[0], batch_size):
-        x_batch = set_x[j:j+batch_size, ...]
-        y_batch = set_y[j:j+batch_size, ...]
-        mmd_distances.append(mmd(y_batch, x_batch))
-
-    return np.mean(mmd_distances)
+    with torch.no_grad():
+        return mmd(set_y, set_x).item()
 
 
 def kid_for_audio_directories(set_x_path: str, set_y_path: str, target_length: float) -> float:

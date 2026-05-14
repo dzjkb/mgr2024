@@ -11,6 +11,7 @@ log_dir: logs/test
 experiment_name: test
 epochs: 600
 device: cuda
+clap_device: cpu
 batch_size: 8
 checkpoint_path: null
 separate_run: null

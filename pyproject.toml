@@ -57,6 +57,8 @@ dependencies = [
     "normflows>=1.7.3",
     "rich[jupyter]>=14.3.3",
     "setuptools<=81.0",
+    "ipympl>=0.10.0",
+    "fadtk>=1.0.1",
 ]
 
 [tool.uv.sources]
