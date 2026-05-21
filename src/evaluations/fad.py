@@ -21,6 +21,7 @@ from fadtk import FrechetAudioDistance, ModelLoader, cache_embedding_files
 from fadtk.fad import FADInfResults, calc_embd_statistics, calc_frechet_distance
 
 from .clap import _CLAPSingleton, SAMPLING_RATE
+from ..ds_utils import load_audio_tensor
 
 
 class cd:
@@ -162,3 +163,9 @@ def fad_from_embeddings(
     )
 
     return FADInfResults(score=intercept, slope=slope, r2=r2, points=results)
+
+
+def fad_for_serialized_embeddings(reference_path: str, target_path: str) -> float:
+    reference = load_audio_tensor(reference_path).data
+    target = load_audio_tensor(target_path).data
+    return fad_from_embeddings(reference, target)

@@ -53,12 +53,12 @@ dependencies = [
     "scipy>=1.15",
     "torchcodec>=0.8.1",
     "laion-clap>=1.1.7",
-    # "fadtk>=1.1.0",
     "normflows>=1.7.3",
     "rich[jupyter]>=14.3.3",
     "setuptools<=81.0",
     "ipympl>=0.10.0",
     "fadtk>=1.0.1",
+    "vendi-score>=0.0.3",
 ]
 
 [tool.uv.sources]

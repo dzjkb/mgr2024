@@ -9,7 +9,9 @@ from tqdm import tqdm
 from .generate import do_generate
 from .train import do_train, do_summarize,TrainingConfig
 from .model import SAMPLING_RATE
-from .evaluations.kid import kid_for_audio_directories, kid_for_serialized_tensors, kid_for_serialized_embeddings
+from .evaluations.kid import kid_for_serialized_embeddings
+from .evaluations.fad import fad_for_serialized_embeddings
+from .evaluations.vendi import vendi_for_serialized_embeddings
 from .ds_utils import embed_directory as do_embed_directory
 from .ds_utils import save_audio_tensor, get_embedding_directory
 from .configs import parse_hydra_config
@@ -142,68 +144,46 @@ def dataset_from_file(in_file: str, target_dir: str, target_length: float, overl
         )
 
 
-@jpmgr.command()
-@click.option("--reference_set", type=click.Path())
-@click.option("--target_set", type=click.Path())
-@click.option("--format", type=str)
-@click.option("--data_length", type=float)
-def calculate_kid(reference_set: str, target_set: str, format: str, data_length: float) -> None:
-    match format:
-        case "directory":
-            assert data_length is not None, "data_length is required if format == 'directory'"
-            kid = kid_for_audio_directories(reference_set, target_set, data_length)
-        case "serialized":
-            kid = kid_for_serialized_tensors(reference_set, target_set)
-        case "embeddings":
-            kid = kid_for_serialized_embeddings(reference_set, target_set)
-        case _:
-            assert False, "expected format to be one of: (directory, serialized)"
+# @jpmgr.command()
+# @click.option("--reference_set", type=click.Path())
+# @click.option("--target_set", type=click.Path())
+# @click.option("--format", type=str)
+# @click.option("--data_length", type=float)
+# def calculate_kid(reference_set: str, target_set: str, format: str, data_length: float) -> None:
+#     match format:
+#         case "directory":
+#             assert data_length is not None, "data_length is required if format == 'directory'"
+#             kid = kid_for_audio_directories(reference_set, target_set, data_length)
+#         case "serialized":
+#             kid = kid_for_serialized_tensors(reference_set, target_set)
+#         case "embeddings":
+#             kid = kid_for_serialized_embeddings(reference_set, target_set)
+#         case _:
+#             assert False, "expected format to be one of: (directory, serialized)"
 
-    print("==========================")
-    print(f"kid = {kid:.8f}")
-    print("==========================")
+#     print("==========================")
+#     print(f"kid = {kid:.8f}")
+#     print("==========================")
 
 
 @jpmgr.command()
 @click.option("--reference_set", type=click.Path())
 @click.option("--target_dir", type=click.Path())
 @click.option("--data_length", type=float)
-def calculate_kid_recursive(reference_set: str, target_dir: str, data_length: float) -> None:
+def evaluate_embedding_dirs(reference_set: str, target_dir: str, data_length: float) -> None:
     assert data_length is not None, "data_length is required"
 
     target_dirs = [d for d in Path(target_dir).iterdir() if d.is_dir()]
     embedding_dirs = [get_embedding_directory(str(d), data_length) for d in target_dirs]
     reference_embeddings = get_embedding_directory(reference_set, data_length)
-    kids = [kid_for_serialized_embeddings(reference_embeddings, str(d), data_length) for d in embedding_dirs]
+    kids = [kid_for_serialized_embeddings(reference_embeddings, str(d)) for d in embedding_dirs]
+    fads = [fad_for_serialized_embeddings(reference_embeddings, str(d)) for d in embedding_dirs]
+    vendis = [vendi_for_serialized_embeddings(str(d)) for d in embedding_dirs]
 
-    for d, k in zip(target_dirs, kids):
-        print("==========================")
-        print(f"kid for {d.name} = {k:.8f}")
-        print("==========================")
-
-
-@jpmgr.command()
-@click.option("--reference_set", type=click.Path())
-@click.option("--target_set", type=click.Path())
-@click.option("--format", type=str)
-@click.option("--data_length", type=float)
-def calculate_fad(reference_set: str, target_set: str, format: str, data_length: float) -> None:
-    # TODO
-    # match format:
-    #     case "directory":
-    #         assert data_length is not None, "data_length is required if format == 'directory'"
-    #         kid = kid_for_audio_directories(reference_set, target_set, data_length)
-    #     case "serialized":
-    #         kid = kid_for_serialized_tensors(reference_set, target_set)
-    #     case "embeddings":
-    #         kid = kid_for_serialized_embeddings(reference_set, target_set)
-    #     case _:
-    #         assert False, "expected format to be one of: (directory, serialized)"
-
-    # print("==========================")
-    # print(f"fad = {fad:.8f}")
-    # print("==========================")
-    pass
+    for d, k, f, v in zip(target_dirs, kids, fads, vendis):
+        print("====================================================")
+        print(f"{d.name}: KID = {k:.6f}, FAD = {f:.6f}, Vendi = {v:.6f}")
+        print("====================================================")
 
 
 @jpmgr.command()

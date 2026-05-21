@@ -931,31 +931,34 @@ class VAE(pl.LightningModule):
         if self.fixed_length is not None and self.test_set_path is not None:
             assert self.audio_channels == 1, "unconditional generation is supported only for mono audio because of CLAP embeddings being used"
             target_generation_path = Path(EVAL_WORKDIR) / "unconditional_generation" / f"{Path(self.logger.log_dir).parent.name}_{Path(self.logger.log_dir).name}" / f"val{self.validation_epoch}"
+            reconstructions_path = Path(EVAL_WORKDIR) / "reconstruction" / f"{Path(self.logger.log_dir).parent.name}_{Path(self.logger.log_dir).name}" / f"val{self.validation_epoch}"
             if target_generation_path.exists():  # rerunning the same epoch, probably after resuming training - remove old results
                 rmtree(target_generation_path)
             generated_audio = generate_with_model(self, 500, self.latent_size)
             save_generated_audio(generated_audio, target_generation_path, SAMPLING_RATE)
 
-            target_embedding_path = get_embedding_directory(str(target_generation_path), self.fixed_length / SAMPLING_RATE)
-            reference_embedding_path = get_embedding_directory(self.test_set_path, self.fixed_length / SAMPLING_RATE)
-            target_embeddings = load_audio_tensor(target_embedding_path).data
-            reference_embeddings = load_audio_tensor(reference_embedding_path).data
+            # target_embedding_path = get_embedding_directory(str(target_generation_path), self.fixed_length / SAMPLING_RATE)
+            # reference_embedding_path = get_embedding_directory(self.test_set_path, self.fixed_length / SAMPLING_RATE)
+            # target_embeddings = load_audio_tensor(target_embedding_path).data
+            # reference_embeddings = load_audio_tensor(reference_embedding_path).data
 
-            kid_score = kid_embeddings(target_embeddings, reference_embeddings)
-            fad_score = fad_from_embeddings(reference_embeddings, target_embeddings).score
-            self.log("validation/KID_gen", kid_score)
-            self.log("validation/FAD_gen", fad_score)
+            # kid_score = kid_embeddings(target_embeddings, reference_embeddings)
+            # fad_score = fad_from_embeddings(reference_embeddings, target_embeddings).score
+            # self.log("validation/KID_gen", kid_score)
+            # self.log("validation/FAD_gen", fad_score)
 
-            val_audio_all = reduce(
-                torch.concatenate(self.validation_outputs["audio"]),
-                "b c l -> b l",
-                "mean",
-            )
-            val_audio_embeddings = get_embeddings(val_audio_all)
-            kid_reconstruction = kid_embeddings(val_audio_embeddings, reference_embeddings)
-            fad_reconstruction = fad_from_embeddings(reference_embeddings, val_audio_embeddings).score
-            self.log("validation/KID_reconstruction", kid_reconstruction)
-            self.log("validation/FAD_reconstruction", fad_reconstruction)
+            val_audio_all = torch.concatenate(self.validation_outputs["audio"])
+            save_generated_audio(val_audio_all, reconstructions_path, SAMPLING_RATE)
+            # val_audio_all = reduce(
+            #     ,
+            #     "b c l -> b l",
+            #     "mean",
+            # )
+            # val_audio_embeddings = get_embeddings(val_audio_all)
+            # kid_reconstruction = kid_embeddings(val_audio_embeddings, reference_embeddings)
+            # fad_reconstruction = fad_from_embeddings(reference_embeddings, val_audio_embeddings).score
+            # self.log("validation/KID_reconstruction", kid_reconstruction)
+            # self.log("validation/FAD_reconstruction", fad_reconstruction)
 
         # reset
 
