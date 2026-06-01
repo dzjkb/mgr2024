@@ -2505,7 +2505,6 @@ dependencies = [
     { name = "laion-clap" },
     { name = "lightning" },
     { name = "mypy" },
-    { name = "normflows" },
     { name = "numpy" },
     { name = "rich", extra = ["jupyter"] },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -2519,6 +2518,7 @@ dependencies = [
     { name = "torchcodec" },
     { name = "torchvision" },
     { name = "vendi-score" },
+    { name = "zuko" },
 ]
 
 [package.metadata]
@@ -2537,7 +2537,6 @@ requires-dist = [
     { name = "laion-clap", specifier = ">=1.1.7" },
     { name = "lightning", specifier = ">=2.6.1" },
     { name = "mypy", specifier = ">=1.15.0" },
-    { name = "normflows", specifier = ">=1.7.3" },
     { name = "numpy", specifier = "<2" },
     { name = "rich", extras = ["jupyter"], specifier = ">=14.3.3" },
     { name = "scipy", specifier = ">=1.15" },
@@ -2550,6 +2549,7 @@ requires-dist = [
     { name = "torchcodec", specifier = ">=0.8.1" },
     { name = "torchvision", specifier = ">=0.21.0", index = "https://download.pytorch.org/whl/cu124" },
     { name = "vendi-score", specifier = ">=0.0.3" },
+    { name = "zuko", specifier = ">=1.6.0" },
 ]
 
 [[package]]
@@ -2962,16 +2962,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/c1/0a/720b3ebfa8efe8ac9
 wheels = [
     { url = "https://files.pythonhosted.org/packages/59/8b/fa7173e7749a57ff5a1008050aed1433874e4010a7537a1588883ad597d6/nnaudio-0.3.4-py3-none-any.whl", hash = "sha256:48db0c54443f4f3f54057d416bd9ba304110552b4bba32f897e864f55deaa87c", size = 43847, upload-time = "2025-12-07T23:20:40.491Z" },
 ]
-
-[[package]]
-name = "normflows"
-version = "1.7.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-    { name = "torch" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/c5/68/3148519079d49392e411bdae3e1e6d3eecd2d284e9b3c90861d70c646157/normflows-1.7.3.tar.gz", hash = "sha256:0cc539869c9970d28041edb4d7a28006c1cec6241d9d0d553975b5b1155c2071", size = 65317, upload-time = "2023-11-16T14:18:22.689Z" }
 
 [[package]]
 name = "notebook-shim"
@@ -5504,4 +5494,17 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/e1/19/3774d162f6732d1cfb0b47b4140a942a35ca82bb19b6db1f80e9e7bdc8f8/yarl-1.23.0-cp314-cp314t-win_amd64.whl", hash = "sha256:4503053d296bc6e4cbd1fad61cf3b6e33b939886c4f249ba7c78b602214fabe2", size = 97610, upload-time = "2026-03-01T22:07:45.773Z" },
     { url = "https://files.pythonhosted.org/packages/51/47/3fa2286c3cb162c71cdb34c4224d5745a1ceceb391b2bd9b19b668a8d724/yarl-1.23.0-cp314-cp314t-win_arm64.whl", hash = "sha256:44bb7bef4ea409384e3f8bc36c063d77ea1b8d4a5b2706956c0d6695f07dcc25", size = 86041, upload-time = "2026-03-01T22:07:49.026Z" },
     { url = "https://files.pythonhosted.org/packages/69/68/c8739671f5699c7dc470580a4f821ef37c32c4cb0b047ce223a7f115757f/yarl-1.23.0-py3-none-any.whl", hash = "sha256:a2df6afe50dea8ae15fa34c9f824a3ee958d785fd5d089063d960bae1daa0a3f", size = 48288, upload-time = "2026-03-01T22:07:51.388Z" },
+]
+
+[[package]]
+name = "zuko"
+version = "1.6.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "torch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8c/41/ddbe72cb64996d7826ba427c675252be0c38fbd9fbf8920d0fcdaf5d8e38/zuko-1.6.0.tar.gz", hash = "sha256:edc516e51bbbf9d64e7663b617cf9293c6e1e6bbfcb39559bc383383e6663b04", size = 45245, upload-time = "2026-03-10T08:38:19.646Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/95/10/ff159867f522cd98e039e748c5e9777446e8b797a79be691c6b730676094/zuko-1.6.0-py3-none-any.whl", hash = "sha256:5c073b613a84a7cd65470ddb94855169020ac49432f73b85f25207e377248a4a", size = 48033, upload-time = "2026-03-10T08:38:21.039Z" },
 ]

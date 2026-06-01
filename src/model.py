@@ -16,6 +16,7 @@ from torch import optim, nn, Tensor
 from torch.nn.utils import weight_norm  # type: ignore[attr-defined]
 from torch.distributions.normal import Normal
 from pytorch_lightning.trainer.states import RunningStage
+from zuko.flows import RealNVP
 
 from .loss import MultiScaleSTFTLoss, feature_matching_loss, hinge_gan_losses
 # from .plots import draw_histogram
@@ -23,7 +24,7 @@ from .noise import Noise, NoiseConfig
 from .discriminators import Discriminator  # type: ignore[attr-defined]
 from .activations import ACTIVATIONS
 from .pqmf import PQMF
-from .normalizing_flows import RealNVP
+from .normalizing_flows import RealNVPTransform
 from .evaluations.kid import kid_embeddings
 from .evaluations.fad import fad_from_embeddings
 from .evaluations.clap import get_embeddings
@@ -592,8 +593,8 @@ class VAE(pl.LightningModule):
             fixed_length=fixed_length,
             reduction_method=reduction_method,
         )
-        self.posterior = RealNVP(latent_size=latent_size, num_layers=nf_posterior_layers) if nf_posterior_layers is not None else None
-        self.prior = RealNVP(latent_size=latent_size, num_layers=nf_prior_layers) if nf_prior_layers is not None else None
+        self.posterior = RealNVPTransform(latent_size=latent_size, num_layers=nf_posterior_layers, hidden_size=[latent_size]) if nf_posterior_layers is not None else None
+        self.prior = RealNVP(latent_size, transforms=nf_prior_layers, hidden_features=[latent_size]) if nf_prior_layers is not None else None
         self.decoder = Decoder(
             start_channels=int(capacity * (decoder_scaling_factor or 1.2)) * 2 ** len(strides),
             dilations=dilations[::-1],
@@ -721,8 +722,19 @@ class VAE(pl.LightningModule):
         # ================================================
         # return self._latent_loss(mean, scale) - log_det.mean()
 
+        # zuko impl of the original version (q0z0, p(z), logdet)
+        # ================================================
+        q0_z0 = q0.log_prob(z0).squeeze().sum(-1)
+        p_z = -iso_gaussian.log_prob(z).squeeze().sum(-1)
+        neg_log_det = -log_det
+        if self.advanced_diagnostics:
+            self.log("debug/nf_q0", q0_z0, on_step=True, on_epoch=False)
+            self.log("debug/nf_pz", p_z, on_step=True, on_epoch=False)
+            self.log("debug/neg_logdet", neg_log_det, on_step=True, on_epoch=False)
+        return (q0_z0 + p_z + neg_log_det).mean()
+
     def _prior_loss(self, z: Tensor) -> Tensor:
-        return self.prior.kld(z, Normal(0.0, 1.0))
+        return -self.prior().log_prob(z).mean()
 
     def _discrimination(self, x: Tensor, x_hat: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         all_discriminators_real_feature_maps = self.discriminator(x)
@@ -977,7 +989,7 @@ class VAE(pl.LightningModule):
 
         # FAD/KID eval
 
-        if self.fixed_length is not None and self.test_set_path is not None:
+        if self.discrimination_phase and self.fixed_length is not None and self.test_set_path is not None:
             assert self.audio_channels == 1, "unconditional generation is supported only for mono audio because of CLAP embeddings being used"
             target_generation_path = Path(EVAL_WORKDIR) / "unconditional_generation" / f"{Path(self.logger.log_dir).parent.name}_{Path(self.logger.log_dir).name}" / f"val{self.validation_epoch}"
             reconstructions_path = Path(EVAL_WORKDIR) / "reconstruction" / f"{Path(self.logger.log_dir).parent.name}_{Path(self.logger.log_dir).name}" / f"val{self.validation_epoch}"
