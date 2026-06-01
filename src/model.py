@@ -108,8 +108,9 @@ class ModelConfig:
     nf_posterior_layers: int | None = None
     nf_prior_layers: int | None = None
     prior_loss_weight: float = 1.0
-    grad_clip: float | None = None,
+    grad_clip: float | None = None
     reduction_method: str | None = None
+    advanced_diagnostics: bool | None = None
 
     def __post_init__(self) -> None:
         assert len(self.dilations) == len(
@@ -568,6 +569,7 @@ class VAE(pl.LightningModule):
         grad_clip: float | None = None,
         reduction_method: str | None = None,
         decoder_scaling_factor: float | None = None,
+        advanced_diagnostics: bool | None = None,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -645,6 +647,7 @@ class VAE(pl.LightningModule):
         self.discriminator_warmup_phase = False
 
         self.automatic_optimization = False  # PL doesn't support discriminator learning out of the box
+        self.advanced_diagnostics = advanced_diagnostics or False
 
     @staticmethod
     def _std(scale: Tensor) -> Tensor:
@@ -689,14 +692,34 @@ class VAE(pl.LightningModule):
         kl_limited = kl_per_dim.clamp(min=0.5)
         return kl_limited.sum(1).mean()
 
-    @staticmethod
-    def _nf_latent_loss(z0: Tensor, mean: Tensor, scale: Tensor, z: Tensor, log_det: Tensor) -> Tensor:
-        std = nn.functional.softplus(scale)
+    def _nf_latent_loss(self, z0: Tensor, mean: Tensor, scale: Tensor, z: Tensor, log_det: Tensor) -> Tensor:
+        std = nn.functional.softplus(scale).add(1e-4)  # enforce minimal variance on each latent dimension
         # q0 = Normal(mean, torch.exp(0.5 * logvar))
         q0 = Normal(mean, std)
         iso_gaussian = Normal(z.new_zeros(1), z.new_ones(1))
         # z0 and z are shaped (batch_size, latent_size, 1)
-        return (q0.log_prob(z0).squeeze().sum(-1) - iso_gaussian.log_prob(z).squeeze().sum(-1) - log_det).mean()
+
+        # this version combines three penalty terms:
+        #   - ln q0(z0)
+        #   - ln N(0, 1)(z)
+        #   - standard NF log determinant
+        # inspired by https://github.com/VincentStimper/normalizing-flows/blob/master/examples/vae.py#L260
+        # based on https://arxiv.org/pdf/1505.05770
+        # ================================================
+        # q0_z0 = q0.log_prob(z0).squeeze().sum(-1)
+        # p_z = -iso_gaussian.log_prob(z).squeeze().sum(-1)
+        # neg_log_det = -log_det
+        # if self.advanced_diagnostics:
+        #     self.log("debug/nf_q0", q0_z0, on_step=True, on_epoch=False)
+        #     self.log("debug/nf_pz", p_z, on_step=True, on_epoch=False)
+        #     self.log("debug/neg_logdet", neg_log_det, on_step=True, on_epoch=False)
+        # return (q0_z0 + p_z + neg_log_det).mean()
+
+        # this version combines two penalty terms:
+        #   - the standard VAE q(z0|x) || p(z0) - KL between approximate posterior - prior
+        #   - the log determinant
+        # ================================================
+        # return self._latent_loss(mean, scale) - log_det.mean()
 
     def _prior_loss(self, z: Tensor) -> Tensor:
         return self.prior.kld(z, Normal(0.0, 1.0))
@@ -730,10 +753,21 @@ class VAE(pl.LightningModule):
             x_mb = self._split_bands(x)
             # mean, logvar = self.encoder(x_mb)
             mean, scale = self.encoder(x_mb)
+
+            if self.advanced_diagnostics:
+                assert not torch.isnan(mean).any()
+                assert not torch.isnan(scale).any()
+
             z = self._reparametrize(mean, scale)
+
+            if self.advanced_diagnostics:
+                assert not torch.isnan(z).any()
 
             if self.posterior is not None:
                 z_flow, log_det = self.posterior(z)
+                if self.advanced_diagnostics:
+                    assert not torch.isnan(z_flow).any()
+                    assert not torch.isnan(log_det).any()
             else:
                 z_flow = z
                 log_det = x.new_zeros(x.shape[0])
@@ -801,6 +835,8 @@ class VAE(pl.LightningModule):
             self.posterior.freeze(self.discrimination_phase)
         gen_opt, disc_opt = self.optimizers()  # type: ignore[attr-defined]
         reconstructed, _, gen_loss, losses_dict = self.forward(batch, discriminator_step=is_discriminator_step, batch_idx=batch_idx)
+        if self.advanced_diagnostics:
+            assert torch.isfinite(gen_loss), f"non-finite loss: {gen_loss.item()}"
 
         if batch_idx % LOG_EVERY_TRAIN_STEP == 0:
             if not is_discriminator_step:
@@ -819,13 +855,26 @@ class VAE(pl.LightningModule):
             lr_schedule = self.lr_schedulers()
             gen_opt.zero_grad()
             self.manual_backward(gen_loss)
-            # nn.utils.clip_grad_norm_([*self.encoder.parameters(), *self.decoder.parameters()], max_norm=self.grad_clip or 100.0)
+            self._log_individual_grad_norms()
+            if self.grad_clip is not None:
+                all_params = [*self.encoder.parameters(), *self.decoder.parameters()]
+                if self.posterior is not None: all_params.extend(self.posterior.parameters())
+                if self.prior is not None: all_params.extend(self.prior.parameters())
+                nn.utils.clip_grad_norm_(all_params, max_norm=self.grad_clip)
             gen_opt.step()
             lr_schedule.step()
         
         if len(self.training_outputs["original"]) == 0:
             self.training_outputs["original"].append(batch)
             self.training_outputs["reconstruction"].append(reconstructed)
+    
+    def _log_individual_grad_norms(self) -> None:
+        if self.advanced_diagnostics:
+            for name, param in self.named_parameters():
+                if param.grad is not None:
+                    assert not torch.isnan(param.grad).any(), f"NaN grad in {name}"
+                    # name_namespaced = name.replace(".", "/")
+                    # self.log(f"grad_norm/{name_namespaced}", param.grad.norm(), on_step=True, on_epoch=False)
 
     def _update_discriminator(self, batch_idx: int | None) -> bool:
         update_discriminator_every = 4
@@ -975,7 +1024,11 @@ class VAE(pl.LightningModule):
 
     def configure_optimizers(self) -> optim.Optimizer:
         disc_optimizer = optim.Adam(self.discriminator.parameters(), lr=self.discriminator_lr, betas=self.betas, fused=True)
-        optimizer = optim.Adam([*self.encoder.parameters(), *self.decoder.parameters()], lr=self.initial_lr, betas=self.betas, fused=True)
+
+        all_params = [*self.encoder.parameters(), *self.decoder.parameters()]
+        if self.posterior is not None: all_params.extend(self.posterior.parameters())
+        if self.prior is not None: all_params.extend(self.prior.parameters())
+        optimizer = optim.Adam(all_params, lr=self.initial_lr, betas=self.betas, fused=True)
         lr_schedule = optim.lr_scheduler.LinearLR(
             optimizer, 1.0, self.final_lr / self.initial_lr, self.lr_decay_steps
         )
@@ -998,6 +1051,14 @@ class VAE(pl.LightningModule):
             ) ** (1./2)
 
             self.log("debug/grad_norm", grad_norm)
+        
+        if self.advanced_diagnostics:
+            # encoder weights
+            for name, param in self.encoder.named_parameters():
+                assert not torch.isnan(param).any(), f"NaN in encoder weights: {name}"
+            for name, module in self.encoder.named_modules():
+                if hasattr(module, 'weight_g'):
+                    assert not (module.weight_g < 1e-8).any(), f"Near-zero weight norm in {name}"
 
 
 def _random_z(n: int, latent_size: int, device: torch.device) -> Tensor:

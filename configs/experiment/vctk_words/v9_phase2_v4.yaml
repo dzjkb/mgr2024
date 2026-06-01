@@ -1,0 +1,32 @@
+# @package _global_
+
+defaults:
+  - override /callbacks: graz_v0
+  - override /model: vctk_words_v8
+  - override /dataset: vctk_words
+
+callbacks:
+  encoder_training_len: 1500000
+  discriminator_warmup_len: 0
+  target_latent_weight: 0.0001
+  latent_weight_warmup_length: 150000
+  adversarial_losses_warmup_len: 5000
+
+model:
+  mono: true
+  fixed_length: 49152
+  adversarial_loss_weight: 1.5
+  feature_loss_weight: 25.0
+
+train_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_train
+val_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_val
+test_set_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_val
+device: cuda
+clap_device: cuda:1
+checkpoint_path: /home/jp/mgr2024/logs/vctk_words/version_15/checkpoints/end_phase1_modified_smaller_discriminator.ckpt
+separate_run: true
+log_dir: logs
+experiment_name: vctk_words
+batch_size: 12
+epochs: 100
+val_every: 1

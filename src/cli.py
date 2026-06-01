@@ -6,7 +6,7 @@ import torchaudio as ta
 from cattrs import structure
 from tqdm import tqdm
 
-from .generate import do_generate
+from .generate import do_generate, do_encode
 from .train import do_train, do_summarize,TrainingConfig
 from .model import SAMPLING_RATE
 from .evaluations.kid import kid_for_serialized_embeddings
@@ -62,7 +62,7 @@ def generate(
     batch_size: int | None,
     device: str | None,
 ) -> None:
-    assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got {checkpoint}"
+    assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got '{checkpoint}'"
     cfg = structure(
         parse_hydra_config("configs/", config_path),
         TrainingConfig,
@@ -74,6 +74,36 @@ def generate(
         checkpoint=checkpoint,
         count=count,
         target_dir=target_dir,
+        batch_size=batch_size,
+        device=device,
+    )
+
+
+@jpmgr.command()
+@click.option("--config_path", type=click.Path())
+@click.option("--checkpoint", type=click.Path())
+@click.option("--source_dir", type=click.Path())
+@click.option("--batch_size", type=int)
+@click.option("--device", type=str)
+def encode(
+    config_path: str,
+    checkpoint: str,
+    source_dir: str,
+    target_dir: str,
+    batch_size: int | None,
+    device: str | None,
+) -> None:
+    assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got '{checkpoint}'"
+    cfg = structure(
+        parse_hydra_config("configs/", config_path),
+        TrainingConfig,
+    )
+    do_encode(
+        model_config=cfg.model,
+        noise_config=cfg.noise,
+        sample_rate=cfg.dataset.expected_sample_rate,
+        checkpoint=checkpoint,
+        source_dir=source_dir,
         batch_size=batch_size,
         device=device,
     )

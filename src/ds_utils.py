@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Callable
 
 import torch
 import torchaudio as ta
@@ -131,9 +132,14 @@ class _FileBatchDataset(Dataset):
 def embed_directory(
     path: str,
     target_length_seconds: float,
+    embedding_f: Callable[[Tensor, int], Tensor] = get_embeddings,
     batch_size: int = 128,
     num_workers: int = 4,
 ) -> AudioTensor:
+    """
+    embeds the given audio directory with CLAP embeddings
+    """
+
     files = [f for f in Path(path).iterdir() if f.is_file()]
     filenames = [f.name for f in files]
 
@@ -149,7 +155,7 @@ def embed_directory(
     out: Tensor | None = None
     offset = 0
     for batch in track(loader, total=len(loader), description=f"embedding {path}"):
-        emb = get_embeddings(batch, batch_size=batch.shape[0])  # (B, D), CPU float32
+        emb = embedding_f(batch, batch.shape[0])  # (B, D), CPU float32
         if out is None:
             out = torch.empty((len(files), emb.shape[1]), dtype=emb.dtype)
         out[offset:offset + emb.shape[0]] = emb
