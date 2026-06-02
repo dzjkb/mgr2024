@@ -15,16 +15,16 @@ callbacks:
 model:
   mono: true
   fixed_length: 49152
-  adversarial_loss_weight: 0.7
-  feature_loss_weight: 20.0
+  adversarial_loss_weight: 1.0
+  feature_loss_weight: 50.0
   discriminator_lr: 0.000005
   initial_lr: 0.00001
-  final_lr: 0.000005
+  final_lr: 0.00001
 
 train_dataset_path: /home/ubuntu/storydz/percussive2/train
 val_dataset_path: /home/ubuntu/storydz/percussive2/val
-checkpoint_path: /home/ubuntu/storydz/logs/percussive2/version_2/checkpoints/epoch=349-step=196350.ckpt
-separate_run: false
+checkpoint_path: /home/ubuntu/storydz/logs/percussive2/version_2/checkpoints/end-phase1-step=350000-reset-lr.ckpt
+separate_run: true
 log_dir: /home/ubuntu/storydz/logs
 experiment_name: percussive2
 batch_size: 24

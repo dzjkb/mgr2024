@@ -20,3 +20,6 @@ n_bands: 16
 nf_prior_layers: null
 nf_posterior_layers: null
 monitor_grad_norm: false
+
+stft_mel: true
+stft_eps: 0.001

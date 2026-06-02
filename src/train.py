@@ -9,7 +9,7 @@ import yaml
 from pathlib import Path
 
 import torch
-# import torch._dynamo
+import torch._dynamo
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.model_summary import summarize
 from attrs import frozen, asdict
@@ -212,15 +212,17 @@ def do_train(cfg: TrainingConfig) -> None:
     #     schedule=torch.profiler.schedule(wait=100, warmup=1, active=5, repeat=3),
     #     with_stack=True,
     # )
-    os.environ["CLAP_DEVICE"] = cfg.clap_device  # not enough space to run two models probs, shit
-    # torch._dynamo.config.cache_size_limit = 32
+    os.environ["CLAP_DEVICE"] = cfg.clap_device  # not enough space on the first device probs, shit
+    torch._dynamo.config.cache_size_limit = 32
+    torch.set_float32_matmul_precision("high")
     trainer = pl.Trainer(
         logger=logger,
         max_epochs=cfg.epochs,
         accelerator=cfg.device,
         devices=1,
         callbacks=init_callbacks(cfg.callbacks, cfg.model.adversarial_loss_weight, cfg.model.feature_loss_weight),
-        profiler="pytorch",
+        # profiler="pytorch",
+        precision="16-mixed",
         enable_progress_bar=True,
         check_val_every_n_epoch=cfg.val_every,
     )
