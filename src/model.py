@@ -112,6 +112,9 @@ class ModelConfig:
     grad_clip: float | None = None
     reduction_method: str | None = None
     advanced_diagnostics: bool | None = None
+    stft_eps: float | None = None
+    stft_mel: bool = False
+    stft_n_mels: int = 128
 
     def __post_init__(self) -> None:
         assert len(self.dilations) == len(
@@ -571,6 +574,9 @@ class VAE(pl.LightningModule):
         reduction_method: str | None = None,
         decoder_scaling_factor: float | None = None,
         advanced_diagnostics: bool | None = None,
+        stft_eps: float | None = None,
+        stft_mel: bool = False,
+        stft_n_mels: int = 128,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -615,10 +621,17 @@ class VAE(pl.LightningModule):
 
         _window_sizes = stft_window_sizes or [2048, 1024, 512, 256, 128]
 
+        _stft_loss = MultiScaleSTFTLoss(
+            _window_sizes,
+            eps=stft_eps or 1e-7,
+            mel=stft_mel,
+            n_mels=stft_n_mels,
+            sample_rate=SAMPLING_RATE,
+        )
         if torch.cuda.is_available() and (torch.cuda.get_device_capability()[0] >= 7):
-            self.reconstruction_loss = torch.compile(MultiScaleSTFTLoss(_window_sizes))
+            self.reconstruction_loss = torch.compile(_stft_loss)
         else:
-            self.reconstruction_loss = MultiScaleSTFTLoss(_window_sizes)
+            self.reconstruction_loss = _stft_loss
 
         self.latent_loss_weight = latent_loss_weight
         self.prior_loss_weight = prior_loss_weight

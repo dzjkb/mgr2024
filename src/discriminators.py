@@ -35,7 +35,7 @@ class MPD(nn.Module):
             WNConv2d(32, 128, (5, 1), (3, 1), padding=(2, 0)),
             WNConv2d(128, 512, (5, 1), (3, 1), padding=(2, 0)),
             WNConv2d(512, 1024, (5, 1), (3, 1), padding=(2, 0)),
-            # WNConv2d(1024, 1024, (5, 1), 1, padding=(2, 0)),
+            WNConv2d(1024, 1024, (5, 1), 1, padding=(2, 0)),
         ])
         self.conv_post = WNConv2d(1024,
                                   1,

@@ -100,7 +100,7 @@ class AudioDataset(data.Dataset[torch.Tensor]):
         self.dataset_dir = dataset_dir
         self.name = dataset_dir.name
         self.expected_sample_rate = expected_sample_rate
-        self.files = list(dataset_dir.glob("*.wav"))
+        self.files = [*dataset_dir.glob("*.wav"), *dataset_dir.glob("*.flac")]
         self.files_cache: dict[int, torch.Tensor] = dict()
         self.caching = caching
 

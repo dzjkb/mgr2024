@@ -3,24 +3,53 @@ from typing import Iterable, cast
 import torch
 from einops import rearrange
 from torch import nn, Tensor
-from torchaudio.transforms import Spectrogram
+from torchaudio.transforms import Spectrogram, MelSpectrogram
 from toolz import juxt
 
 
 class MultiScaleSTFTLoss(nn.Module):
-    def __init__(self, window_sizes: Iterable[int]):
+    def __init__(
+        self,
+        window_sizes: Iterable[int],
+        eps: float = 1e-7,
+        mel: bool = False,
+        n_mels: int = 128,
+        sample_rate: int = 48000,
+    ):
         super().__init__()
-        # TODO: mel scale?
-        self.stfts = nn.ModuleList(
-            Spectrogram(
-                n_fft=w,
-                win_length=w,
-                hop_length=w // 4,
-                normalized=False,
-                power=1,
+        if mel:
+            # Empty (all-zero) mel filters appear when a triangular filter is
+            # narrower than the FFT bin spacing (sample_rate / n_fft). This bites
+            # twice: at low frequencies (filters are densest there) and for small
+            # windows (coarse bin spacing). f_min lifts the low edge above the
+            # first-bin resolution, and n_mels is capped per-window so small
+            # windows get proportionally fewer bands. Both together avoid the
+            # all-zero-filterbank warning across every window size.
+            self.stfts = nn.ModuleList(
+                MelSpectrogram(
+                    sample_rate=sample_rate,
+                    n_fft=w,
+                    win_length=w,
+                    hop_length=w // 4,
+                    f_min=sample_rate / w,
+                    n_mels=min(n_mels, w // 8),
+                    normalized=False,
+                    power=1,
+                )
+                for w in window_sizes
             )
-            for w in window_sizes
-        )
+        else:
+            self.stfts = nn.ModuleList(
+                Spectrogram(
+                    n_fft=w,
+                    win_length=w,
+                    hop_length=w // 4,
+                    normalized=False,
+                    power=1,
+                )
+                for w in window_sizes
+            )
+        self.eps = eps
 
     # def _multiscale_stft(self, x: Tensor) -> Iterable[Tensor]:
     #     x_: Tensor = rearrange(x, "b c t -> (b c) t")
@@ -52,8 +81,8 @@ class MultiScaleSTFTLoss(nn.Module):
         for stft in self.stfts:
             xs = stft(x_)
             ys = stft(y_)
-            logx = torch.log(xs + 1e-7)
-            logy = torch.log(ys + 1e-7)
+            logx = torch.log(xs + self.eps)
+            logy = torch.log(ys + self.eps)
 
             lin_distance = _l2_relative_distance(xs, ys)
             log_distance = _l1_distance(logx, logy)

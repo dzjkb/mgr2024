@@ -20,12 +20,12 @@ model:
   monitor_grad_norm: true
   advanced_diagnostics: false
 
-train_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_train_half
+train_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_train
 val_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_val
 test_set_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_val
 device: cuda
 log_dir: logs
 experiment_name: vctk_words_nf
-batch_size: 10
+batch_size: 12
 epochs: 100
 val_every: 1

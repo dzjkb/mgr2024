@@ -17,6 +17,6 @@ activation: relu
 reduction_method: conv
 n_bands: 16
 
-nf_prior_layers: 4
-nf_posterior_layers: 4
+nf_prior_layers: 10
+nf_posterior_layers: 10
 monitor_grad_norm: false
