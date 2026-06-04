@@ -164,6 +164,7 @@ class TrainingConfig:
     dataset: DatasetConfig
     noise: NoiseConfig | None = None
     test_set_path: str | None = None
+    precision: str | None = None
 
 
 def _log_config(cfg: TrainingConfig, path: str) -> None:
@@ -220,9 +221,10 @@ def do_train(cfg: TrainingConfig) -> None:
         accelerator=cfg.device,
         devices=1,
         callbacks=init_callbacks(cfg.callbacks, cfg.model.adversarial_loss_weight, cfg.model.feature_loss_weight),
-        profiler="pytorch",
+        # profiler="pytorch",
         enable_progress_bar=True,
         check_val_every_n_epoch=cfg.val_every,
+        precision=cfg.precision,
     )
     checkpoint_kwarg: dict[str, str] = (
         {"ckpt_path": cfg.checkpoint_path, "weights_only": False} if cfg.checkpoint_path is not None else {}

@@ -30,7 +30,7 @@ def do_generate(
     assert model_config.fixed_length is not None, "unconditional generation is available only for models with `fixed_length` defined"
 
     device = torch.device(device)
-    model = VAE.load_from_checkpoint(checkpoint, noise_config=noise_config, **asdict(model_config)).to(device)
+    model = VAE.load_from_checkpoint(checkpoint, noise_config=noise_config, **asdict(model_config), map_location=device, weights_only=False)
     model.eval()
 
     audio = generate_with_model(model, count, model_config.latent_size, batch_size)
@@ -47,7 +47,7 @@ def _encode(model: VAE, x: Tensor) -> Tensor:
         if model.posterior is not None:
             z, _ = model.posterior(z)
         
-    return z
+    return z.squeeze()
 
 
 def do_encode(
@@ -69,11 +69,11 @@ def do_encode(
     assert model_config.fixed_length is not None, "unconditional generation is available only for models with `fixed_length` defined"
 
     device = torch.device(device)
-    model = VAE.load_from_checkpoint(checkpoint, noise_config=noise_config, **asdict(model_config)).to(device)
+    model = VAE.load_from_checkpoint(checkpoint, noise_config=noise_config, **asdict(model_config), map_location=device, weights_only=False)
     model.eval()
 
     def _encoding_f(x: Tensor, b_size: int) -> Tensor:
-        return _encode(model, x)
+        return _encode(model, x.unsqueeze(1).to(device))  # missing channel dimension, our VAE expects it even if it's 1
 
     result = embed_directory(source_dir, model_config.fixed_length / sample_rate, _encoding_f)
     save_audio_tensor(result, f"{source_dir}_in_latent_space")

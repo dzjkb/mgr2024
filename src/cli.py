@@ -90,7 +90,6 @@ def encode(
     config_path: str,
     checkpoint: str,
     source_dir: str,
-    target_dir: str,
     batch_size: int | None,
     device: str | None,
 ) -> None:
