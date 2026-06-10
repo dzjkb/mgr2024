@@ -19,13 +19,16 @@ model:
   feature_loss_weight: 20.0
   monitor_grad_norm: true
   advanced_diagnostics: false
+  nf_prior_layers: null
 
 train_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_train
 val_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_val
 test_set_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_val
+checkpoint_path: /home/jp/mgr2024/logs/vctk_words_nf/version_8/checkpoints/end-phase1-removed-prior.ckpt
+separate_run: false
 device: cuda
 log_dir: logs
 experiment_name: vctk_words_nf
-batch_size: 12
+batch_size: 10
 epochs: 100
 val_every: 1

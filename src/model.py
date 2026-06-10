@@ -747,7 +747,7 @@ class VAE(pl.LightningModule):
         return (q0_z0 + p_z + neg_log_det).mean()
 
     def _prior_loss(self, z: Tensor) -> Tensor:
-        return -self.prior().log_prob(z).mean()
+        return -self.prior().log_prob(z).to(self.device).mean()
 
     def _discrimination(self, x: Tensor, x_hat: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         all_discriminators_real_feature_maps = self.discriminator(x)
@@ -1084,6 +1084,10 @@ class VAE(pl.LightningModule):
             for name, module in self.encoder.named_modules():
                 if hasattr(module, 'weight_g'):
                     assert not (module.weight_g < 1e-8).any(), f"Near-zero weight norm in {name}"
+
+    # # TODO remove this l8r
+    # def load_state_dict(self, state_dict, strict=True):
+    #     return super().load_state_dict(state_dict, strict=False)  # force non-strict
 
 
 def _random_z(n: int, latent_size: int, device: torch.device) -> Tensor:

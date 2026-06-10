@@ -1,0 +1,33 @@
+# @package _global_
+
+defaults:
+  - override /callbacks: graz_v0
+  - override /model: percussive2_v1
+  - override /dataset: snares_1s
+
+callbacks:
+  encoder_training_len: 350000
+  discriminator_warmup_len: 0
+  target_latent_weight: 0.0001
+  latent_weight_warmup_length: 300000
+  adversarial_losses_warmup_len: 0
+
+model:
+  mono: true
+  fixed_length: 49152
+  adversarial_loss_weight: 1.0
+  feature_loss_weight: 50.0
+  discriminator_lr: 0.000005
+  initial_lr: 0.00001
+  final_lr: 0.00001
+
+train_dataset_path: /media/Data/jp_dir/sounds/percussive2_train
+val_dataset_path: /media/Data/jp_dir/sounds/percussive2_val
+checkpoint_path: /media/Data/jp_dir/sounds/aws_training/percussive2/version_2/checkpoints/end-phase1-step=350000-reset-lr.ckpt
+separate_run: true
+log_dir: /media/Data/jp_dir/sounds/aws_training
+experiment_name: percussive2
+batch_size: 8
+epochs: 800
+val_every: 5
+precision: 16-mixed

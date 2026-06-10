@@ -215,6 +215,7 @@ def do_train(cfg: TrainingConfig) -> None:
     # )
     os.environ["CLAP_DEVICE"] = cfg.clap_device  # not enough space to run two models probs, shit
     # torch._dynamo.config.cache_size_limit = 32
+    torch.set_float32_matmul_precision("high")
     trainer = pl.Trainer(
         logger=logger,
         max_epochs=cfg.epochs,
