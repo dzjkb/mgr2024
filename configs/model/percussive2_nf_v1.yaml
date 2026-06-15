@@ -18,7 +18,7 @@ reduction_method: conv
 n_bands: 16
 
 nf_prior_layers: null
-nf_posterior_layers: 10
+nf_posterior_layers: 6
 monitor_grad_norm: false
 
 stft_mel: true

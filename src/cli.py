@@ -7,7 +7,7 @@ import torchaudio as ta
 from cattrs import structure
 from tqdm import tqdm
 
-from .generate import do_generate, do_encode
+from .generate import do_generate, do_encode, do_reconstruct
 from .train import do_train, do_summarize,TrainingConfig
 from .model import SAMPLING_RATE
 from .evaluations.kid import kid_for_serialized_embeddings
@@ -86,12 +86,14 @@ def generate(
 @click.option("--source_dir", type=click.Path())
 @click.option("--batch_size", type=int)
 @click.option("--device", type=str)
+@click.option("--suffix", type=str)
 def encode(
     config_path: str,
     checkpoint: str,
     source_dir: str,
     batch_size: int | None,
     device: str | None,
+    suffix: str | None,
 ) -> None:
     assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got '{checkpoint}'"
     cfg = structure(
@@ -106,6 +108,39 @@ def encode(
         source_dir=source_dir,
         batch_size=batch_size,
         device=device,
+        unique_suffix=suffix or "",
+    )
+
+
+@jpmgr.command()
+@click.option("--config_path", type=click.Path())
+@click.option("--checkpoint", type=click.Path())
+@click.option("--source_dir", type=click.Path())
+@click.option("--batch_size", type=int)
+@click.option("--device", type=str)
+@click.option("--suffix", type=str)
+def reconstruct(
+    config_path: str,
+    checkpoint: str,
+    source_dir: str,
+    batch_size: int | None,
+    device: str | None,
+    suffix: str | None,
+) -> None:
+    assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got '{checkpoint}'"
+    cfg = structure(
+        parse_hydra_config("configs/", config_path),
+        TrainingConfig,
+    )
+    do_reconstruct(
+        model_config=cfg.model,
+        noise_config=cfg.noise,
+        sample_rate=cfg.dataset.expected_sample_rate,
+        checkpoint=checkpoint,
+        source_dir=source_dir,
+        batch_size=batch_size,
+        device=device,
+        unique_suffix=suffix or "",
     )
 
 
@@ -174,28 +209,6 @@ def dataset_from_file(in_file: str, target_dir: str, target_length: float, overl
         )
 
 
-# @jpmgr.command()
-# @click.option("--reference_set", type=click.Path())
-# @click.option("--target_set", type=click.Path())
-# @click.option("--format", type=str)
-# @click.option("--data_length", type=float)
-# def calculate_kid(reference_set: str, target_set: str, format: str, data_length: float) -> None:
-#     match format:
-#         case "directory":
-#             assert data_length is not None, "data_length is required if format == 'directory'"
-#             kid = kid_for_audio_directories(reference_set, target_set, data_length)
-#         case "serialized":
-#             kid = kid_for_serialized_tensors(reference_set, target_set)
-#         case "embeddings":
-#             kid = kid_for_serialized_embeddings(reference_set, target_set)
-#         case _:
-#             assert False, "expected format to be one of: (directory, serialized)"
-
-#     print("==========================")
-#     print(f"kid = {kid:.8f}")
-#     print("==========================")
-
-
 @jpmgr.command()
 @click.option("--reference_set", type=click.Path())
 @click.option("--target_dir", type=click.Path())
@@ -203,17 +216,21 @@ def dataset_from_file(in_file: str, target_dir: str, target_length: float, overl
 def evaluate_embedding_dirs(reference_set: str, target_dir: str, data_length: float) -> None:
     assert data_length is not None, "data_length is required"
 
-    target_dirs = [d for d in Path(target_dir).iterdir() if d.is_dir()]
+    target_dirs = [
+        d
+        for d in Path(target_dir).iterdir()
+        if d.is_dir() and not d.stem.endswith("_embeddings")
+    ]
     embedding_dirs = [get_embedding_directory(str(d), data_length) for d in target_dirs]
     reference_embeddings = get_embedding_directory(reference_set, data_length)
     kids = [kid_for_serialized_embeddings(reference_embeddings, str(d)) for d in embedding_dirs]
-    fads = [fad_for_serialized_embeddings(reference_embeddings, str(d)) for d in embedding_dirs]
+    fads = [fad_for_serialized_embeddings(reference_embeddings, str(d)).score for d in embedding_dirs]
     vendis = [vendi_for_serialized_embeddings(str(d)) for d in embedding_dirs]
 
+    print()
     for d, k, f, v in zip(target_dirs, kids, fads, vendis):
-        print("====================================================")
-        print(f"{d.name}: KID = {k:.6f}, FAD = {f:.6f}, Vendi = {v:.6f}")
-        print("====================================================")
+        print(f"{d.name}:\tKID = {k:.6f}, FAD = {f:.6f}, Vendi = {v:.6f}")
+    print()
 
 
 @jpmgr.command()

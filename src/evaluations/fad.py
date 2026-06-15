@@ -165,7 +165,7 @@ def fad_from_embeddings(
     return FADInfResults(score=intercept, slope=slope, r2=r2, points=results)
 
 
-def fad_for_serialized_embeddings(reference_path: str, target_path: str) -> float:
+def fad_for_serialized_embeddings(reference_path: str, target_path: str) -> FADInfResults:
     reference = load_audio_tensor(reference_path).data
     target = load_audio_tensor(target_path).data
     return fad_from_embeddings(reference, target)
