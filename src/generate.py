@@ -5,6 +5,7 @@ from torch import Tensor
 from attrs import asdict
 
 from .model import VAE, ModelConfig, generate_with_model
+from .prior_model import PriorConfig, Prior
 from .noise import NoiseConfig
 from .ds_utils import save_generated_audio, save_audio_tensor, embed_directory
 
@@ -18,6 +19,8 @@ def do_generate(
     target_dir: str,
     batch_size: int | None,
     device: str | None,
+    prior_config: PriorConfig | None = None,
+    prior_checkpoint: str | None = None,
 ) -> None:
     """
     generates `count` flac files in `target_dir` named `{idx}.flac` for `idx` in `range(count)` by drawing
@@ -33,7 +36,13 @@ def do_generate(
     model = VAE.load_from_checkpoint(checkpoint, noise_config=noise_config, **asdict(model_config), map_location=device, weights_only=False)
     model.eval()
 
-    audio = generate_with_model(model, count, model_config.latent_size, batch_size)
+    if prior_config is None:
+        audio = generate_with_model(model, count, model_config.latent_size, batch_size)
+    else:
+        assert prior_checkpoint is not None, "prior_config is specified, but prior_checkpoint is None - need prior_checkpoint to load"
+        prior = Prior.load_from_checkpoint(prior_checkpoint, **asdict(prior_config), map_location=device, weights_only=False)
+        prior.eval()
+        audio = generate_with_model(model, count, model_config.latent_size, batch_size, prior_flow=prior.flow)
     save_generated_audio(audio, target_dir, sample_rate)
 
 

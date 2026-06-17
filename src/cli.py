@@ -4,6 +4,7 @@ from pathlib import Path
 
 import click
 import torchaudio as ta
+import yaml
 from cattrs import structure
 from tqdm import tqdm
 
@@ -16,6 +17,7 @@ from .evaluations.vendi import vendi_for_serialized_embeddings
 from .ds_utils import embed_directory as do_embed_directory
 from .ds_utils import get_embedding_directory, save_audio_tensor_as_wavs
 from .configs import parse_hydra_config
+from .train_prior import do_train as do_prior_train, PriorTrainingConfig
 
 
 @click.group(context_settings={"auto_envvar_prefix": "JPMGR"})
@@ -32,6 +34,14 @@ def train(config: str) -> None:
     )
 
     do_train(cfg)
+
+
+@jpmgr.command()
+@click.option("--config", default="prior_configs/v1.yaml", type=click.Path())
+def prior_train(config: str) -> None:
+    with open(config) as f:
+        cfg = structure(yaml.safe_load(f), PriorTrainingConfig)
+    do_prior_train(cfg)
 
 
 @jpmgr.command()
@@ -55,6 +65,8 @@ def summarize(config: str, depth: int | None) -> None:
 @click.option("--target_dir", type=click.Path())
 @click.option("--batch_size", type=int)
 @click.option("--device", type=str)
+@click.option("--prior_config_path", type=click.Path())
+@click.option("--prior_checkpoint", type=click.Path())
 def generate(
     config_path: str,
     checkpoint: str,
@@ -62,12 +74,25 @@ def generate(
     target_dir: str,
     batch_size: int | None,
     device: str | None,
+    prior_config_path: str | None,
+    prior_checkpoint: str | None,
 ) -> None:
     assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got '{checkpoint}'"
     cfg = structure(
         parse_hydra_config("configs/", config_path),
         TrainingConfig,
     )
+
+    if prior_config_path is not None:
+        with open(prior_config_path) as f:
+            prior_cfg = structure(yaml.safe_load(f), PriorTrainingConfig)
+        prior_kwargs = {
+            "prior_config": prior_cfg.model,
+            "prior_checkpoint": prior_checkpoint,
+        }
+    else:
+        prior_kwargs = {}
+
     do_generate(
         model_config=cfg.model,
         noise_config=cfg.noise,
@@ -77,6 +102,7 @@ def generate(
         target_dir=target_dir,
         batch_size=batch_size,
         device=device,
+        **prior_kwargs,
     )
 
 

@@ -1114,7 +1114,7 @@ def generate_with_model(
         if prior_flow is None:
             z = _random_z(count, latent_size, model.device)
         else:
-            z = prior_flow().sample((count,))
+            z = prior_flow().sample((count,)).unsqueeze(-1)
         for z_batch in _iterate_in_batches(z, batch_size=batch_size):
             generated = model._join_bands(model.decoder(z_batch))
             generated_audio_list.append(generated)
