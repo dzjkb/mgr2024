@@ -178,3 +178,17 @@ def get_embedding_directory(path: str, target_length_seconds: float) -> str:
 
 def pca(data: Tensor) -> Tensor:
     return PCA(3).fit_transform(data.cpu().numpy())
+
+
+def save_audio_tensor_as_wavs(source_dir: str, target_dir: str, sample_rate: int) -> None:
+    at = load_audio_tensor(source_dir)
+    assert at.data.shape[0] == len(at.filenames), "malformed audio tensor"
+
+    Path(target_dir).mkdir(exist_ok=True, parents=True)
+
+    for audio, fname in zip(at.data, at.filenames):
+        ta.save(
+            Path(target_dir) / f"{Path(fname).stem}_reconstructed.wav",
+            audio[None, ...],
+            sample_rate=sample_rate,
+        )

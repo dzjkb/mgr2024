@@ -3,6 +3,7 @@
 
 import torch
 
+
 def _compute_kernel(x, y, k):
     # Pairwise squared Euclidean distances via the algebraic identity
     # ‖x - y‖² = ‖x‖² + ‖y‖² - 2·x·yᵀ. Avoids materializing the (N, M, D)
@@ -14,9 +15,25 @@ def _compute_kernel(x, y, k):
     distances = distances.clamp_min(0.0)             # numerical safety
     return k(distances)
 
-def mmd(z_tilde, z, kernel='imq'):
+
+def mmd(z_tilde, z, kernel='imq', normalize=True):
+    """
+    Unbiased estimator of the squared Maximum Mean Discrepancy between two
+    embedding sets, with an inverse-multiquadratic (or gaussian) kernel.
+
+    :param z_tilde: (M, D) embeddings of the first set (e.g. generated)
+    :param z:       (N, D) embeddings of the second set (e.g. reference)
+    :param normalize: if True, L2-normalize embeddings before the kernel so the
+        score is invariant to embedding magnitude (CLAP embeddings are not
+        guaranteed unit-norm depending on the extraction path).
+
+    The two sets may have different sizes. The within-set terms exclude the
+    diagonal (the unbiased estimator drops the k(x_i, x_i) self-terms, each
+    equal to kernel(0)=1), and each term is normalized by its own set size:
+        1/(N(N-1)) for z, 1/(M(M-1)) for z_tilde, 2/(NM) for the cross term.
+    """
     def gaussian(d, var=16.):
-        return torch.exp(- d / var).sum(1).sum(0)
+        return torch.exp(- d / var)
 
     def inverse_multiquadratics(d, var=16.):
         """
@@ -24,23 +41,33 @@ def mmd(z_tilde, z, kernel='imq'):
         :param var:
         :return:
         """
-        return (var / (var + d)).sum(1).sum(0)
-    if kernel == 'imq':
+        return var / (var + d)
 
+    if kernel == 'imq':
         k = inverse_multiquadratics
     elif kernel == 'gaussian':
         k = gaussian
     else:
         raise AttributeError(f'Kernel type {kernel} not understood. Available: [gaussian, imq]')
 
-    batch_size = z_tilde.size(0)
-    zz_ker = _compute_kernel(z, z, k)
-    z_tilde_z_tilde_ker = _compute_kernel(z_tilde, z_tilde, k)
-    z_z_tilde_ker = _compute_kernel(z, z_tilde, k)
+    if normalize:
+        z = torch.nn.functional.normalize(z, dim=1)
+        z_tilde = torch.nn.functional.normalize(z_tilde, dim=1)
 
-    first_coefs = 1. / (batch_size * (batch_size - 1))
-    second_coef = 2 / (batch_size * batch_size)
-    mmd_distance = (first_coefs * zz_ker
-           + first_coefs * z_tilde_z_tilde_ker
-           - second_coef * z_z_tilde_ker)
+    n = z.size(0)
+    m = z_tilde.size(0)
+    assert n > 1 and m > 1, f"need at least 2 samples per set, got n={n}, m={m}"
+
+    zz_ker = _compute_kernel(z, z, k)                       # (N, N)
+    z_tilde_z_tilde_ker = _compute_kernel(z_tilde, z_tilde, k)  # (M, M)
+    z_z_tilde_ker = _compute_kernel(z, z_tilde, k)          # (N, M)
+
+    # exclude the diagonal self-terms from the within-set sums
+    zz_sum = zz_ker.sum() - zz_ker.diagonal().sum()
+    z_tilde_z_tilde_sum = z_tilde_z_tilde_ker.sum() - z_tilde_z_tilde_ker.diagonal().sum()
+    cross_sum = z_z_tilde_ker.sum()
+
+    mmd_distance = (zz_sum / (n * (n - 1))
+                    + z_tilde_z_tilde_sum / (m * (m - 1))
+                    - 2.0 * cross_sum / (n * m))
     return mmd_distance

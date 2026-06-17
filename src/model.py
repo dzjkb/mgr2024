@@ -600,7 +600,7 @@ class VAE(pl.LightningModule):
             reduction_method=reduction_method,
         )
         self.posterior = RealNVPTransform(latent_size=latent_size, num_layers=nf_posterior_layers, hidden_size=[latent_size]) if nf_posterior_layers is not None else None
-        self.prior = RealNVP(latent_size, transforms=nf_prior_layers, hidden_features=[latent_size]) if nf_prior_layers is not None else None
+        # self.prior = RealNVP(latent_size, transforms=nf_prior_layers, hidden_features=[latent_size]) if nf_prior_layers is not None else None
         self.decoder = Decoder(
             start_channels=int(capacity * (decoder_scaling_factor or 1.2)) * 2 ** len(strides),
             dilations=dilations[::-1],
@@ -746,8 +746,8 @@ class VAE(pl.LightningModule):
             self.log("debug/neg_logdet", neg_log_det, on_step=True, on_epoch=False)
         return (q0_z0 + p_z + neg_log_det).mean()
 
-    def _prior_loss(self, z: Tensor) -> Tensor:
-        return -self.prior().log_prob(z).to(self.device).mean()
+    # def _prior_loss(self, z: Tensor) -> Tensor:
+    #     return -self.prior().log_prob(z).to(self.device).mean()
 
     def _discrimination(self, x: Tensor, x_hat: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         all_discriminators_real_feature_maps = self.discriminator(x)
@@ -831,10 +831,10 @@ class VAE(pl.LightningModule):
                 + self.feature_loss_weight * losses_dict["feature_matching_loss"]
             )
 
-            if self.prior is not None:
-                prior_loss = self._prior_loss(z_flow)
-                losses_dict["prior_loss"] = prior_loss
-                total_loss += self.prior_loss_weight * prior_loss
+            # if self.prior is not None:
+            #     prior_loss = self._prior_loss(z_flow)
+            #     losses_dict["prior_loss"] = prior_loss
+            #     total_loss += self.prior_loss_weight * prior_loss
 
         elif discriminator_step:
             _, disc_loss, _ = self._discrimination(x, x_hat)
@@ -884,7 +884,7 @@ class VAE(pl.LightningModule):
             if self.grad_clip is not None:
                 all_params = [*self.encoder.parameters(), *self.decoder.parameters()]
                 if self.posterior is not None: all_params.extend(self.posterior.parameters())
-                if self.prior is not None: all_params.extend(self.prior.parameters())
+                # if self.prior is not None: all_params.extend(self.prior.parameters())
                 nn.utils.clip_grad_norm_(all_params, max_norm=self.grad_clip)
             gen_opt.step()
             lr_schedule.step()
@@ -1052,7 +1052,7 @@ class VAE(pl.LightningModule):
 
         all_params = [*self.encoder.parameters(), *self.decoder.parameters()]
         if self.posterior is not None: all_params.extend(self.posterior.parameters())
-        if self.prior is not None: all_params.extend(self.prior.parameters())
+        # if self.prior is not None: all_params.extend(self.prior.parameters())
         optimizer = optim.Adam(all_params, lr=self.initial_lr, betas=self.betas, fused=True)
         lr_schedule = optim.lr_scheduler.LinearLR(
             optimizer, 1.0, self.final_lr / self.initial_lr, self.lr_decay_steps
@@ -1107,10 +1107,14 @@ def generate_with_model(
     count: int,
     latent_size: int,
     batch_size: int = 8,
+    prior_flow: RealNVP | None = None,
 ) -> Tensor:
     generated_audio_list = []
     with torch.no_grad():
-        z = _random_z(count, latent_size, model.device)
+        if prior_flow is None:
+            z = _random_z(count, latent_size, model.device)
+        else:
+            z = prior_flow().sample((count,))
         for z_batch in _iterate_in_batches(z, batch_size=batch_size):
             generated = model._join_bands(model.decoder(z_batch))
             generated_audio_list.append(generated)

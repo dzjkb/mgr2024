@@ -62,7 +62,7 @@ def _reconstruct(model: VAE, x: Tensor) -> Tensor:
 
         x_hat_mb = model.decoder(z)
         x_hat = model._join_bands(x_hat_mb)
-        
+
     return x_hat.squeeze()
 
 

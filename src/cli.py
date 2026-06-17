@@ -14,7 +14,7 @@ from .evaluations.kid import kid_for_serialized_embeddings
 from .evaluations.fad import fad_for_serialized_embeddings
 from .evaluations.vendi import vendi_for_serialized_embeddings
 from .ds_utils import embed_directory as do_embed_directory
-from .ds_utils import save_audio_tensor, get_embedding_directory
+from .ds_utils import get_embedding_directory, save_audio_tensor_as_wavs
 from .configs import parse_hydra_config
 
 
@@ -234,16 +234,42 @@ def evaluate_embedding_dirs(reference_set: str, target_dir: str, data_length: fl
 
 
 @jpmgr.command()
-@click.option("--audio_path", type=click.Path())
+@click.option("--reference_set", type=click.Path())
+@click.option("--target_dir", type=click.Path())
 @click.option("--data_length", type=float)
-def embed_directory(audio_path: str, data_length: float) -> None:
-    target_path = f"{audio_path}_embeddings"
-    if Path(target_path).exists():
-        print(f"{target_path} already exists, aborting")
-        return
+def evaluate_embedding_dir(reference_set: str, target_dir: str, data_length: float) -> None:
+    assert data_length is not None, "data_length is required"
 
-    embeddings = do_embed_directory(audio_path, data_length)
-    save_audio_tensor(embeddings, target_path)
+    embedding_dir = get_embedding_directory(target_dir, data_length)
+    reference_embeddings = get_embedding_directory(reference_set, data_length)
+    kid = kid_for_serialized_embeddings(reference_embeddings, embedding_dir)
+    fad = fad_for_serialized_embeddings(reference_embeddings, embedding_dir).score
+    vendi = vendi_for_serialized_embeddings(embedding_dir)
+
+    print()
+    print(f"{Path(target_dir).name}:\tKID = {kid:.6f}, FAD = {fad:.6f}, Vendi = {vendi:.6f}")
+    print()
+
+
+# @jpmgr.command()
+# @click.option("--audio_path", type=click.Path())
+# @click.option("--data_length", type=float)
+# def embed_directory(audio_path: str, data_length: float) -> None:
+#     target_path = f"{audio_path}_embeddings"
+#     if Path(target_path).exists():
+#         print(f"{target_path} already exists, aborting")
+#         return
+
+#     embeddings = do_embed_directory(audio_path, data_length)
+#     save_audio_tensor(embeddings, target_path)
+
+
+@jpmgr.command()
+@click.option("--source_dir", type=click.Path())
+@click.option("--target_dir", type=click.Path())
+@click.option("--sample_rate", type=int)
+def convert_audio_tensor_to_wavs(source_dir: str, target_dir: str, sample_rate: int) -> None:
+    save_audio_tensor_as_wavs(source_dir, target_dir, sample_rate)
 
 
 if __name__ == "__main__":
