@@ -6,17 +6,17 @@ defaults:
   - override /dataset: snares_1s
 
 callbacks:
-  encoder_training_len: 350000
+  encoder_training_len: 280000
   discriminator_warmup_len: 0
-  target_latent_weight: 0.0001
-  latent_weight_warmup_length: 300000
+  target_latent_weight: 0.0002
+  latent_weight_warmup_length: 160000
   adversarial_losses_warmup_len: 0
 
 model:
   mono: true
   fixed_length: 49152
   adversarial_loss_weight: 1.0
-  feature_loss_weight: 50.0
+  feature_loss_weight: 40.0
   discriminator_lr: 0.000005
   initial_lr: 0.00001
   final_lr: 0.00001
@@ -25,7 +25,7 @@ train_dataset_path: /media/Data/jp_dir/sounds/percussive2_train
 val_dataset_path: /media/Data/jp_dir/sounds/percussive2_val
 log_dir: /media/Data/jp_dir/sounds/aws_training
 experiment_name: percussive2_nf
-batch_size: 8
+batch_size: 10
 epochs: 800
 val_every: 10
 precision: 16-mixed

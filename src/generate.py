@@ -34,6 +34,7 @@ def do_generate(
     assert model_config.fixed_length is not None, "unconditional generation is available only for models with `fixed_length` defined"
 
     device = torch.device(device)
+    # add `strict=False` if there's a state dict mismatch with no real effect
     model = VAE.load_from_checkpoint(checkpoint, noise_config=noise_config, **asdict(model_config), map_location=device, weights_only=False)
     model.eval()
 

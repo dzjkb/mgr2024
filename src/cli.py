@@ -7,6 +7,7 @@ import torchaudio as ta
 import yaml
 from cattrs import structure
 from tqdm import tqdm
+from rich.console import Console
 
 from .generate import do_generate, do_encode, do_reconstruct, do_gilbo
 from .gilbo import GilboConfig
@@ -321,15 +322,18 @@ def evaluate_embedding_dirs(reference_set: str, target_dir: str, data_length: fl
 @click.option("--data_length", type=float)
 def evaluate_embedding_dir(reference_set: str, target_dir: str, data_length: float) -> None:
     assert data_length is not None, "data_length is required"
+    console = Console()
 
     embedding_dir = get_embedding_directory(target_dir, data_length)
     reference_embeddings = get_embedding_directory(reference_set, data_length)
-    kid = kid_for_serialized_embeddings(reference_embeddings, embedding_dir)
-    fad = fad_for_serialized_embeddings(reference_embeddings, embedding_dir).score
-    vendi = vendi_for_serialized_embeddings(embedding_dir)
+    with console.status("calculating [magenta]KID[/magenta]..."):
+        kid = kid_for_serialized_embeddings(reference_embeddings, embedding_dir)
+    fad = fad_for_serialized_embeddings(reference_embeddings, embedding_dir)
+    with console.status("calculating [magenta]Vendi[/magenta]..."):
+        vendi = vendi_for_serialized_embeddings(embedding_dir)
 
     print()
-    print(f"{Path(target_dir).name}:\tKID = {kid:.6f}, FAD = {fad:.6f}, Vendi = {vendi:.6f}")
+    print(f"{Path(target_dir).name}:\tKID = {kid:.6f}, FAD = {fad.score:.6f} (r2={fad.r2:.4f}), Vendi = {vendi:.6f}")
     print()
 
 
