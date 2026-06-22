@@ -7,6 +7,7 @@ from attrs import asdict
 from .model import VAE, ModelConfig, generate_with_model
 from .prior_model import PriorConfig, Prior
 from .noise import NoiseConfig
+from .gilbo import GilboConfig, compute_gilbo
 from .ds_utils import save_generated_audio, save_audio_tensor, embed_directory
 
 
@@ -44,6 +45,35 @@ def do_generate(
         prior.eval()
         audio = generate_with_model(model, count, model_config.latent_size, batch_size, prior_flow=prior.flow)
     save_generated_audio(audio, target_dir, sample_rate)
+
+
+def do_gilbo(
+    model_config: ModelConfig,
+    noise_config: NoiseConfig | None,
+    checkpoint: str,
+    gilbo_config: GilboConfig,
+    prior_config: PriorConfig | None = None,
+    prior_checkpoint: str | None = None,
+) -> float:
+    """
+    estimates the GILBO (a lower bound on the mutual information between the latent z and the
+    generated audio) for the model in `checkpoint`, sampling z from the same prior `generate` uses
+    """
+
+    assert model_config.fixed_length is not None, "GILBO is available only for models with `fixed_length` defined"
+
+    device = torch.device(gilbo_config.device)
+    model = VAE.load_from_checkpoint(checkpoint, noise_config=noise_config, **asdict(model_config), map_location=device, weights_only=False)
+    model.eval()
+
+    if prior_config is None:
+        prior = None
+    else:
+        assert prior_checkpoint is not None, "prior_config is specified, but prior_checkpoint is None - need prior_checkpoint to load"
+        prior = Prior.load_from_checkpoint(prior_checkpoint, **asdict(prior_config), map_location=device, weights_only=False)
+        prior.eval()
+
+    return compute_gilbo(model, prior, model_config, gilbo_config)
 
 
 def _encode(model: VAE, x: Tensor) -> Tensor:

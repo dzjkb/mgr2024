@@ -8,7 +8,8 @@ import yaml
 from cattrs import structure
 from tqdm import tqdm
 
-from .generate import do_generate, do_encode, do_reconstruct
+from .generate import do_generate, do_encode, do_reconstruct, do_gilbo
+from .gilbo import GilboConfig
 from .train import do_train, do_summarize,TrainingConfig
 from .model import SAMPLING_RATE
 from .evaluations.kid import kid_for_serialized_embeddings
@@ -104,6 +105,61 @@ def generate(
         device=device,
         **prior_kwargs,
     )
+
+
+@jpmgr.command()
+@click.option("--config_path", type=click.Path())
+@click.option("--checkpoint", type=click.Path())
+@click.option("--prior_config_path", type=click.Path())
+@click.option("--prior_checkpoint", type=click.Path())
+@click.option("--train_steps", type=int, default=20_000)
+@click.option("--eval_steps", type=int, default=2_000)
+@click.option("--batch_size", type=int, default=64)
+@click.option("--lr", type=float, default=1e-4)
+@click.option("--device", type=str, default="cuda")
+def gilbo(
+    config_path: str,
+    checkpoint: str,
+    prior_config_path: str | None,
+    prior_checkpoint: str | None,
+    train_steps: int,
+    eval_steps: int,
+    batch_size: int,
+    lr: float,
+    device: str,
+) -> None:
+    assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got '{checkpoint}'"
+    cfg = structure(
+        parse_hydra_config("configs/", config_path),
+        TrainingConfig,
+    )
+
+    if prior_config_path is not None:
+        with open(prior_config_path) as f:
+            prior_cfg = structure(yaml.safe_load(f), PriorTrainingConfig)
+        prior_kwargs = {
+            "prior_config": prior_cfg.model,
+            "prior_checkpoint": prior_checkpoint,
+        }
+    else:
+        prior_kwargs = {}
+
+    gilbo_config = GilboConfig(
+        train_steps=train_steps,
+        eval_steps=eval_steps,
+        batch_size=batch_size,
+        lr=lr,
+        device=device,
+    )
+
+    score = do_gilbo(
+        model_config=cfg.model,
+        noise_config=cfg.noise,
+        checkpoint=checkpoint,
+        gilbo_config=gilbo_config,
+        **prior_kwargs,
+    )
+    print(f"GILBO = {score:.4f} nats")
 
 
 @jpmgr.command()
