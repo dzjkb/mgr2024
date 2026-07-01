@@ -11,7 +11,7 @@ from rich.console import Console
 
 from .generate import do_generate, do_encode, do_reconstruct, do_gilbo
 from .gilbo import GilboConfig
-from .train import do_train, do_summarize,TrainingConfig
+from .train import do_train, do_summarize, TrainingConfig
 from .model import SAMPLING_RATE
 from .evaluations.kid import kid_for_serialized_embeddings
 from .evaluations.fad import fad_for_serialized_embeddings
@@ -79,7 +79,9 @@ def generate(
     prior_config_path: str | None,
     prior_checkpoint: str | None,
 ) -> None:
-    assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got '{checkpoint}'"
+    assert (
+        checkpoint is not None and len(checkpoint) > 0
+    ), f"checkpoint is required, got '{checkpoint}'"
     cfg = structure(
         parse_hydra_config("configs/", config_path),
         TrainingConfig,
@@ -118,6 +120,24 @@ def generate(
 @click.option("--batch_size", type=int, default=64)
 @click.option("--lr", type=float, default=1e-4)
 @click.option("--device", type=str, default="cuda")
+@click.option(
+    "--cosine_decay/--no_cosine_decay", default=True, help="cosine-anneal the lr over training"
+)
+@click.option(
+    "--early_stop_patience",
+    type=int,
+    default=4,
+    help="snapshots of flatness before early-stop (0 disables)",
+)
+@click.option(
+    "--early_stop_nats",
+    type=float,
+    default=0.5,
+    help="min GILBO gain (nats) to count as still improving",
+)
+@click.option(
+    "--grad_clip", type=float, default=10.0, help="clip aux-encoder grad norm (0 disables)"
+)
 def gilbo(
     config_path: str,
     checkpoint: str,
@@ -128,8 +148,14 @@ def gilbo(
     batch_size: int,
     lr: float,
     device: str,
+    cosine_decay: bool,
+    early_stop_patience: int,
+    early_stop_nats: float,
+    grad_clip: float,
 ) -> None:
-    assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got '{checkpoint}'"
+    assert (
+        checkpoint is not None and len(checkpoint) > 0
+    ), f"checkpoint is required, got '{checkpoint}'"
     cfg = structure(
         parse_hydra_config("configs/", config_path),
         TrainingConfig,
@@ -151,6 +177,10 @@ def gilbo(
         batch_size=batch_size,
         lr=lr,
         device=device,
+        cosine_decay=cosine_decay,
+        early_stop_patience=early_stop_patience,
+        early_stop_nats=early_stop_nats,
+        grad_clip=grad_clip,
     )
 
     score = do_gilbo(
@@ -178,7 +208,9 @@ def encode(
     device: str | None,
     suffix: str | None,
 ) -> None:
-    assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got '{checkpoint}'"
+    assert (
+        checkpoint is not None and len(checkpoint) > 0
+    ), f"checkpoint is required, got '{checkpoint}'"
     cfg = structure(
         parse_hydra_config("configs/", config_path),
         TrainingConfig,
@@ -210,7 +242,9 @@ def reconstruct(
     device: str | None,
     suffix: str | None,
 ) -> None:
-    assert checkpoint is not None and len(checkpoint) > 0, f"checkpoint is required, got '{checkpoint}'"
+    assert (
+        checkpoint is not None and len(checkpoint) > 0
+    ), f"checkpoint is required, got '{checkpoint}'"
     cfg = structure(
         parse_hydra_config("configs/", config_path),
         TrainingConfig,
@@ -272,7 +306,7 @@ def dataset_from_file(in_file: str, target_dir: str, target_length: float, overl
         total_length: int, chunk_length: int, chunk_overlap: int
     ) -> Generator[tuple[int, int], None, None]:
         for i in range(0, total_length, chunk_length - chunk_overlap):
-            yield i, i+chunk_length
+            yield i, i + chunk_length
 
     in_audio, sr = ta.load(in_file)
     if sr != SAMPLING_RATE:
@@ -280,9 +314,7 @@ def dataset_from_file(in_file: str, target_dir: str, target_length: float, overl
 
     in_name = Path(in_file).stem
     for idx, (start, end) in tqdm(
-        enumerate(
-            _overlapping_chunks(in_audio.shape[-1], target_length_samples, overlap_samples)
-        ),
+        enumerate(_overlapping_chunks(in_audio.shape[-1], target_length_samples, overlap_samples)),
         total=in_audio.shape[-1] // (target_length_samples - overlap_samples),
     ):
         ta.save(
@@ -300,14 +332,14 @@ def evaluate_embedding_dirs(reference_set: str, target_dir: str, data_length: fl
     assert data_length is not None, "data_length is required"
 
     target_dirs = [
-        d
-        for d in Path(target_dir).iterdir()
-        if d.is_dir() and not d.stem.endswith("_embeddings")
+        d for d in Path(target_dir).iterdir() if d.is_dir() and not d.stem.endswith("_embeddings")
     ]
     embedding_dirs = [get_embedding_directory(str(d), data_length) for d in target_dirs]
     reference_embeddings = get_embedding_directory(reference_set, data_length)
     kids = [kid_for_serialized_embeddings(reference_embeddings, str(d)) for d in embedding_dirs]
-    fads = [fad_for_serialized_embeddings(reference_embeddings, str(d)).score for d in embedding_dirs]
+    fads = [
+        fad_for_serialized_embeddings(reference_embeddings, str(d)).score for d in embedding_dirs
+    ]
     vendis = [vendi_for_serialized_embeddings(str(d)) for d in embedding_dirs]
 
     print()
@@ -333,7 +365,9 @@ def evaluate_embedding_dir(reference_set: str, target_dir: str, data_length: flo
         vendi = vendi_for_serialized_embeddings(embedding_dir)
 
     print()
-    print(f"{Path(target_dir).name}:\tKID = {kid:.6f}, FAD = {fad.score:.6f} (r2={fad.r2:.4f}), Vendi = {vendi:.6f}")
+    print(
+        f"{Path(target_dir).name}:\tKID = {kid:.6f}, FAD = {fad.score:.6f} (r2={fad.r2:.4f}), Vendi = {vendi:.6f}"
+    )
     print()
 
 
