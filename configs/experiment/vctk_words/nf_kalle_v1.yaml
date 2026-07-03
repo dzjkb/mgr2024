@@ -1,0 +1,33 @@
+# @package _global_
+
+defaults:
+  - override /callbacks: graz_v0
+  - override /model: vctk_words_nf
+  - override /dataset: vctk_words
+
+callbacks:
+  encoder_training_len: 1000000
+  discriminator_warmup_len: 0
+  target_latent_weight: 0.0003
+  latent_weight_warmup_length: 10000
+  adversarial_losses_warmup_len: 0
+
+model:
+  mono: true
+  fixed_length: 49152
+  adversarial_loss_weight: 0.5
+  feature_loss_weight: 20.0
+  monitor_grad_norm: true
+  advanced_diagnostics: false
+  kalle_style_flow: true
+  initial_lr: 0.00005
+  final_lr: 0.00002
+
+train_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_train
+val_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_val
+device: cuda
+log_dir: logs
+experiment_name: vctk_words_kalle
+batch_size: 10
+epochs: 100
+val_every: 1

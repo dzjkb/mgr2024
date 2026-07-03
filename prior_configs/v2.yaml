@@ -1,0 +1,11 @@
+train_dataset_path: /media/Data/jp_dir/sounds/percussive2_train_in_latent_space_nfv3
+log_dir: logs
+experiment_name: percussive2_nf_v3_prior
+epochs: 200
+batch_size: 2048
+device: cuda
+val_every: 1
+model:
+  latent_size: 256
+  layers: 10
+  lr: 0.001

@@ -29,5 +29,12 @@ class RealNVPTransform(nn.Module):
             y, ladj = self.flow_transform().call_and_ladj(x.squeeze(-1))  # type: ignore
             return y[..., None], ladj
 
+    # inverse without logdet since I don't need it for anything
+    def inverse(self, x: Tensor) -> Tensor:
+        ctx = _frozen(self) if self.freeze_weights else contextlib.nullcontext()
+        with ctx:
+            y = self.flow_transform().inv(x.squeeze(-1))
+            return y[..., None]
+
     def freeze(self, value: bool) -> None:
         self.freeze_weights = value

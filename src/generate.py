@@ -39,12 +39,12 @@ def do_generate(
     model.eval()
 
     if prior_config is None:
-        audio = generate_with_model(model, count, model_config.latent_size, batch_size)
+        audio = generate_with_model(model, count, batch_size)
     else:
         assert prior_checkpoint is not None, "prior_config is specified, but prior_checkpoint is None - need prior_checkpoint to load"
         prior = Prior.load_from_checkpoint(prior_checkpoint, **asdict(prior_config), map_location=device, weights_only=False)
         prior.eval()
-        audio = generate_with_model(model, count, model_config.latent_size, batch_size, prior_flow=prior.flow)
+        audio = generate_with_model(model, count, batch_size, prior_flow=prior.flow)
     save_generated_audio(audio, target_dir, sample_rate)
 
 

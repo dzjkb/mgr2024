@@ -115,6 +115,7 @@ class ModelConfig:
     stft_eps: float | None = None
     stft_mel: bool = False
     stft_n_mels: int = 128
+    kalle_style_flow: bool = False
 
     def __post_init__(self) -> None:
         assert len(self.dilations) == len(
@@ -577,6 +578,7 @@ class VAE(pl.LightningModule):
         stft_eps: float | None = None,
         stft_mel: bool = False,
         stft_n_mels: int = 128,
+        kalle_style_flow: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -600,7 +602,10 @@ class VAE(pl.LightningModule):
             reduction_method=reduction_method,
         )
         self.posterior = RealNVPTransform(latent_size=latent_size, num_layers=nf_posterior_layers, hidden_size=[latent_size]) if nf_posterior_layers is not None else None
-        # self.prior = RealNVP(latent_size, transforms=nf_prior_layers, hidden_features=[latent_size]) if nf_prior_layers is not None else None
+        if self.posterior is None:
+            assert not kalle_style_flow, "to train a KALL-E style posterior the number of posterior layers must be set"
+        self.kalle = kalle_style_flow
+
         self.decoder = Decoder(
             start_channels=int(capacity * (decoder_scaling_factor or 1.2)) * 2 ** len(strides),
             dilations=dilations[::-1],
@@ -706,48 +711,23 @@ class VAE(pl.LightningModule):
         kl_limited = kl_per_dim.clamp(min=0.5)
         return kl_limited.sum(1).mean()
 
-    def _nf_latent_loss(self, z0: Tensor, mean: Tensor, scale: Tensor, z: Tensor, log_det: Tensor) -> Tensor:
+    def _nf_latent_loss(self, z0: Tensor, mean: Tensor, scale: Tensor, z: Tensor, log_det: Tensor, batch_idx: int | None = None) -> Tensor:
         std = nn.functional.softplus(scale).add(1e-4)  # enforce minimal variance on each latent dimension
         # q0 = Normal(mean, torch.exp(0.5 * logvar))
         q0 = Normal(mean, std)
         iso_gaussian = Normal(z.new_zeros(1), z.new_ones(1))
-        # z0 and z are shaped (batch_size, latent_size, 1)
-
-        # this version combines three penalty terms:
-        #   - ln q0(z0)
-        #   - ln N(0, 1)(z)
-        #   - standard NF log determinant
-        # inspired by https://github.com/VincentStimper/normalizing-flows/blob/master/examples/vae.py#L260
-        # based on https://arxiv.org/pdf/1505.05770
-        # ================================================
-        # q0_z0 = q0.log_prob(z0).squeeze().sum(-1)
-        # p_z = -iso_gaussian.log_prob(z).squeeze().sum(-1)
-        # neg_log_det = -log_det
+        q0_z0 = q0.log_prob(z0).squeeze().sum(-1)
+        p_z = -iso_gaussian.log_prob(z).squeeze().sum(-1)
+        neg_log_det = -log_det
         # if self.advanced_diagnostics:
         #     self.log("debug/nf_q0", q0_z0, on_step=True, on_epoch=False)
         #     self.log("debug/nf_pz", p_z, on_step=True, on_epoch=False)
         #     self.log("debug/neg_logdet", neg_log_det, on_step=True, on_epoch=False)
-        # return (q0_z0 + p_z + neg_log_det).mean()
-
-        # this version combines two penalty terms:
-        #   - the standard VAE q(z0|x) || p(z0) - KL between approximate posterior - prior
-        #   - the log determinant
-        # ================================================
-        # return self._latent_loss(mean, scale) - log_det.mean()
-
-        # zuko impl of the original version (q0z0, p(z), logdet)
-        # ================================================
-        q0_z0 = q0.log_prob(z0).squeeze().sum(-1)
-        p_z = -iso_gaussian.log_prob(z).squeeze().sum(-1)
-        neg_log_det = -log_det
-        if self.advanced_diagnostics:
+        if batch_idx is not None and batch_idx % LOG_EVERY_TRAIN_STEP == 0:
             self.log("debug/nf_q0", q0_z0, on_step=True, on_epoch=False)
             self.log("debug/nf_pz", p_z, on_step=True, on_epoch=False)
             self.log("debug/neg_logdet", neg_log_det, on_step=True, on_epoch=False)
         return (q0_z0 + p_z + neg_log_det).mean()
-
-    # def _prior_loss(self, z: Tensor) -> Tensor:
-    #     return -self.prior().log_prob(z).to(self.device).mean()
 
     def _discrimination(self, x: Tensor, x_hat: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         all_discriminators_real_feature_maps = self.discriminator(x)
@@ -797,7 +777,10 @@ class VAE(pl.LightningModule):
                 z_flow = z
                 log_det = x.new_zeros(x.shape[0])
 
-            x_hat_mb = self.decoder(z_flow)
+            if self.kalle:
+                x_hat_mb = self.decoder(z)
+            else:
+                x_hat_mb = self.decoder(z_flow)
             x_hat = self._join_bands(x_hat_mb)
 
         if not discriminator_step:
@@ -805,7 +788,7 @@ class VAE(pl.LightningModule):
                 "latent_loss": (
                     self._latent_loss(mean, scale, batch_idx=batch_idx)
                     if self.posterior is None
-                    else self._nf_latent_loss(z, mean, scale, z_flow, log_det)
+                    else self._nf_latent_loss(z, mean, scale, z_flow, log_det, batch_idx=batch_idx)
                 ),
                 "reconstruction_loss": self.reconstruction_loss(x, x_hat),
                 "multiband_reconstruction_loss": self.reconstruction_loss(x_mb, x_hat_mb),
@@ -1008,7 +991,7 @@ class VAE(pl.LightningModule):
             reconstructions_path = Path(EVAL_WORKDIR) / "reconstruction" / f"{Path(self.logger.log_dir).parent.name}_{Path(self.logger.log_dir).name}" / f"val{self.validation_epoch}"
             if target_generation_path.exists():  # rerunning the same epoch, probably after resuming training - remove old results
                 rmtree(target_generation_path)
-            generated_audio = generate_with_model(self, 500, self.latent_size)
+            generated_audio = generate_with_model(self, 500)
             save_generated_audio(generated_audio, target_generation_path, SAMPLING_RATE)
 
             # target_embedding_path = get_embedding_directory(str(target_generation_path), self.fixed_length / SAMPLING_RATE)
@@ -1089,12 +1072,15 @@ class VAE(pl.LightningModule):
     # def load_state_dict(self, state_dict, strict=True):
     #     return super().load_state_dict(state_dict, strict=False)  # force non-strict
 
-
-def _random_z(n: int, latent_size: int, device: torch.device) -> Tensor:
-    return torch.distributions.Normal(
-        torch.zeros(size=(n, latent_size, 1)),
-        torch.ones(size=(n, latent_size, 1)),
-    ).sample().to(device)
+    def sample_prior(self, count: int) -> Tensor:
+        unit_gauss = torch.distributions.Normal(
+            torch.zeros(size=(count, self.latent_size, 1)),
+            torch.ones(size=(count, self.latent_size, 1)),
+        ).sample().to(self.device)
+        if not self.kalle:
+            return unit_gauss
+        else:
+            return self.posterior.inverse(unit_gauss)
 
 
 def _iterate_in_batches(x: Tensor, batch_size: int) -> Iterable[Tensor]:
@@ -1105,15 +1091,15 @@ def _iterate_in_batches(x: Tensor, batch_size: int) -> Iterable[Tensor]:
 def generate_with_model(
     model: VAE,
     count: int,
-    latent_size: int,
     batch_size: int = 8,
     prior_flow: RealNVP | None = None,
 ) -> Tensor:
     generated_audio_list = []
     with torch.no_grad():
         if prior_flow is None:
-            z = _random_z(count, latent_size, model.device)
+            z = model.sample_prior(count)
         else:
+            assert not model.kalle, "cant use additional prior flow with KALL-E style flow that already defines a prior"
             z = prior_flow().sample((count,)).unsqueeze(-1)
         for z_batch in _iterate_in_batches(z, batch_size=batch_size):
             generated = model._join_bands(model.decoder(z_batch))
