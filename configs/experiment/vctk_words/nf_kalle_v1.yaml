@@ -15,11 +15,12 @@ callbacks:
 model:
   mono: true
   fixed_length: 49152
-  adversarial_loss_weight: 0.5
-  feature_loss_weight: 20.0
+  adversarial_loss_weight: 1.0
+  feature_loss_weight: 30.0
   monitor_grad_norm: true
   advanced_diagnostics: false
   kalle_style_flow: true
+  discriminator_lr: 0.000001
   initial_lr: 0.00005
   final_lr: 0.00002
 
@@ -28,6 +29,8 @@ val_dataset_path: /media/Data/jp_dir/sounds/vctk_words_v2/audio_val
 device: cuda
 log_dir: logs
 experiment_name: vctk_words_kalle
-batch_size: 10
+batch_size: 8
 epochs: 100
 val_every: 1
+checkpoint_path: /home/jp/mgr2024/logs/vctk_words_kalle/version_2/checkpoints/last.ckpt
+separate_run: false

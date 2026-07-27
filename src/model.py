@@ -723,10 +723,10 @@ class VAE(pl.LightningModule):
         #     self.log("debug/nf_q0", q0_z0, on_step=True, on_epoch=False)
         #     self.log("debug/nf_pz", p_z, on_step=True, on_epoch=False)
         #     self.log("debug/neg_logdet", neg_log_det, on_step=True, on_epoch=False)
-        if batch_idx is not None and batch_idx % LOG_EVERY_TRAIN_STEP == 0:
-            self.log("debug/nf_q0", q0_z0, on_step=True, on_epoch=False)
-            self.log("debug/nf_pz", p_z, on_step=True, on_epoch=False)
-            self.log("debug/neg_logdet", neg_log_det, on_step=True, on_epoch=False)
+        # if batch_idx is not None and batch_idx % LOG_EVERY_TRAIN_STEP == 0:
+        #     self.log("debug/nf_q0", q0_z0.mean(), on_step=True, on_epoch=False)
+        #     self.log("debug/nf_pz", p_z.mean(), on_step=True, on_epoch=False)
+        #     self.log("debug/neg_logdet", neg_log_det.mean(), on_step=True, on_epoch=False)
         return (q0_z0 + p_z + neg_log_det).mean()
 
     def _discrimination(self, x: Tensor, x_hat: Tensor) -> tuple[Tensor, Tensor, Tensor]:

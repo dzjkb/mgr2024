@@ -6,7 +6,11 @@ import requests
 import pandas as pd
 from rich.progress import track
 
-prompt_question = "Does the recording description '{}' describe a one-shot sound similar to a snare drum sound?"
+# prompt_question = "Does the recording description '{}' describe a one-shot sound similar to a snare drum sound?"
+prompt_question = (
+    "Does the recording description '{}' probably describe a non-instrumental, abstract sound effect?"
+    " Exclude descriptions of loops or raw recordings, I'm interested only in synthetic SFX-style sounds."
+)
 
 ollama_api = "http://localhost:11434/api/generate"
 metadata_path = "/home/jp/mgr2024/freesound_meta.csv"

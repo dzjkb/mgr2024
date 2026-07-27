@@ -53,8 +53,8 @@ class _CLAPSingleton:
             device = cls.get_device()
             with _suppress_stdout():
                 cls._model = CLAP_Module(enable_fusion=False, amodel="HTSAT-base", device=device)
-                # cls._model.load_ckpt("music_audioset_epoch_15_esc_90.14.pt")
-                cls._model.load_ckpt("music_speech_epoch_15_esc_89.25.pt")
+                cls._model.load_ckpt("music_audioset_epoch_15_esc_90.14.pt")
+                # cls._model.load_ckpt("music_speech_epoch_15_esc_89.25.pt")
         return cls._model
 
 
