@@ -253,6 +253,9 @@ def main():
     ap.add_argument("--out_csv", required=True, help="output CSV path")
     ap.add_argument("--limit", type=int, default=0,
                     help="process only the first N files (0 = all); for smoke tests")
+    ap.add_argument("--no_family", action="store_true",
+                    help="omit the filename-derived instrument `family` column "
+                         "(e.g. for non-percussive datasets where it doesn't apply)")
     args = ap.parse_args()
 
     files = sorted(
@@ -279,7 +282,9 @@ def main():
             failures.append((base, repr(e)))
             print(f"  [{i}/{len(files)}] FAILED {base}: {e!r}", file=sys.stderr)
             continue
-        row = {"filename": base, "family": parse_family(base)}
+        row = {"filename": base}
+        if not args.no_family:
+            row["family"] = parse_family(base)
         row.update(feats)
         rows.append(row)
         fieldset.update(row.keys())
@@ -287,7 +292,7 @@ def main():
             print(f"  [{i}/{len(files)}] {base}", file=sys.stderr)
 
     # stable column order: keys first, then sorted feature columns
-    lead = ["filename", "family"]
+    lead = ["filename"] if args.no_family else ["filename", "family"]
     feat_cols = sorted(c for c in fieldset if c not in lead)
     fieldnames = lead + feat_cols
 
@@ -304,9 +309,10 @@ def main():
         for b, e in failures:
             print(f"  {b}: {e}", file=sys.stderr)
     # quick family breakdown
-    from collections import Counter
-    fam = Counter(r["family"] for r in rows)
-    print("family counts:", dict(fam.most_common()), file=sys.stderr)
+    if not args.no_family:
+        from collections import Counter
+        fam = Counter(r["family"] for r in rows)
+        print("family counts:", dict(fam.most_common()), file=sys.stderr)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,5 @@
+zero_pad_cut: 192512  # 4.011s; must be a multiple of prod(strides)*n_bands = 128*16 = 2048 (=94); 192000 is NOT and breaks decoder length
+expected_sample_rate: 48000
+augment: true
+mono: true
+caching: false

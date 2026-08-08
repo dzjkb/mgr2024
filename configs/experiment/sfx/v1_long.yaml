@@ -1,0 +1,34 @@
+# @package _global_
+# Filtered sfx1 subset: LONG set.
+# 4.0s window (192512 samples = 94*2048); keeps more of the long tail whole
+# (clips with <=4.0s effective length). ~27.8k clips. ~4x the samples-per-clip
+# of the 1s experiments, so expect higher memory/compute; drop batch_size if OOM.
+# NB: fixed_length must be a multiple of prod(strides)*n_bands = 2048, else the
+# decoder can't reproduce the input length (STFT-loss shape mismatch).
+# Built by: build_sfx_subset.py materialize --name sfx1f_long --window-s 4.0
+#           --dyn-pct 90 --pitch-pct 90 --longpitch-s 2.5 --rms-pct 2 --outlier-pct 0.5
+
+defaults:
+  - override /callbacks: graz_v0
+  - override /model: sfx_v1
+  - override /dataset: sfx_4s
+
+callbacks:
+  encoder_training_len: 1000000
+  discriminator_warmup_len: 0
+  target_latent_weight: 0.0001
+  latent_weight_warmup_length: 300000
+
+model:
+  mono: true
+  fixed_length: 192512
+
+
+train_dataset_path: /media/Data/jp_dir/sounds/sfx1f_long/train
+val_dataset_path: /media/Data/jp_dir/sounds/sfx1f_long/val
+log_dir: logs
+experiment_name: sfx1f_long
+batch_size: 4
+epochs: 200
+val_every: 2
+# precision: 16-mixed

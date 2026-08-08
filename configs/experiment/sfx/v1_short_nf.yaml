@@ -1,0 +1,35 @@
+# @package _global_
+# Filtered sfx1 subset: SHORT / whole-sound set.
+# 1.6s window (77824 samples = 38*2048); every kept clip has <=1.6s effective
+# length (dur_to_90pct_s) so the full sound fits the window. ~19.7k clips.
+# NB: fixed_length must be a multiple of prod(strides)*n_bands = 2048, else the
+# decoder can't reproduce the input length (STFT-loss shape mismatch).
+# Built by: build_sfx_subset.py materialize --name sfx1f_short --window-s 1.6
+#           --dyn-pct 90 --pitch-pct 90 --longpitch-s 2.5 --rms-pct 2 --outlier-pct 0.5
+
+defaults:
+  - override /callbacks: graz_v0
+  - override /model: sfx_nf_v1
+  - override /dataset: sfx_1_6s
+
+callbacks:
+  encoder_training_len: 1000000
+  discriminator_warmup_len: 0
+  target_latent_weight: 0.0002
+  latent_weight_warmup_length: 160000
+
+model:
+  mono: true
+  fixed_length: 77824
+
+
+train_dataset_path: /media/Data/jp_dir/sounds/sfx1f_short/train
+val_dataset_path: /media/Data/jp_dir/sounds/sfx1f_short/val
+log_dir: logs
+experiment_name: sfx1f_short_nf
+batch_size: 6
+epochs: 2000
+val_every: 2
+# precision: 16-mixed
+# checkpoint_path: /home/jp/mgr2024/logs/sfx1f_short/version_0/checkpoints/last.ckpt
+# separate_run: false
