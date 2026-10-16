@@ -1,0 +1,19 @@
+\BOOKMARK [2][-]{subsection.0.0.1}{algorytmy syntezy i kontrola}{}% 1
+\BOOKMARK [0][-]{chapter.1}{Podstawy teoretyczne}{}% 2
+\BOOKMARK [1][-]{section.1.1}{Reprezentacja dzwieku}{chapter.1}% 3
+\BOOKMARK [1][-]{section.1.2}{Deep learning i modele generatywne}{chapter.1}% 4
+\BOOKMARK [2][-]{subsection.1.2.1}{Modelowanie generatywne}{section.1.2}% 5
+\BOOKMARK [2][-]{subsection.1.2.2}{Sieci Bayesowskie}{section.1.2}% 6
+\BOOKMARK [2][-]{subsection.1.2.3}{Charakterystyka podejsc z uzyciem deep learningu}{section.1.2}% 7
+\BOOKMARK [2][-]{subsection.1.2.4}{Sieci Rekurencyjne}{section.1.2}% 8
+\BOOKMARK [2][-]{subsection.1.2.5}{GANy}{section.1.2}% 9
+\BOOKMARK [2][-]{subsection.1.2.6}{VAE}{section.1.2}% 10
+\BOOKMARK [1][-]{section.1.3}{Powiazane prace}{chapter.1}% 11
+\BOOKMARK [2][-]{subsection.1.3.1}{WaveNet}{section.1.3}% 12
+\BOOKMARK [2][-]{subsection.1.3.2}{SampleRNN}{section.1.3}% 13
+\BOOKMARK [2][-]{subsection.1.3.3}{}{section.1.3}% 14
+\BOOKMARK [1][-]{section.1.4}{Normalizing Flows}{chapter.1}% 15
+\BOOKMARK [1][-]{section.1.5}{DDSP}{chapter.1}% 16
+\BOOKMARK [0][-]{chapter.2}{Architektura}{}% 17
+\BOOKMARK [0][-]{chapter.3}{Eksperymenty oraz ewaluacja}{}% 18
+\BOOKMARK [0][-]{chapter.4}{Podsumowanie i wnioski}{}% 19

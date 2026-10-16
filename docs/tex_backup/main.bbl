@@ -1,0 +1,246 @@
+\begin{thebibliography}{37}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Abdal et~al.(2019)Abdal, Qin, and Wonka]{abdal2019image2stylegan}
+Rameen Abdal, Yipeng Qin, and Peter Wonka.
+\newblock Image2stylegan: How to embed images into the stylegan latent space?,
+  2019.
+
+\bibitem[Baevski et~al.(2020)Baevski, Zhou, Mohamed, and
+  Auli]{baevski2020wav2vec}
+Alexei Baevski, Henry Zhou, Abdelrahman Mohamed, and Michael Auli.
+\newblock wav2vec 2.0: A framework for self-supervised learning of speech
+  representations, 2020.
+
+\bibitem[Castellon et~al.(2021)Castellon, Donahue, and
+  Liang]{castellon2021codified}
+Rodrigo Castellon, Chris Donahue, and Percy Liang.
+\newblock Codified audio language modeling learns useful representations for
+  music information retrieval, 2021.
+
+\bibitem[Dempster et~al.(1977)Dempster, Laird, and
+  Rubin]{dempster1977emalgorithm}
+A.~P. Dempster, N.~M. Laird, and D.~B. Rubin.
+\newblock Maximum likelihood from incomplete data via the em algorithm.
+\newblock \emph{Journal of the Royal Statistical Society. Series B
+  (Methodological)}, 39\penalty0 (1):\penalty0 1--38, 1977.
+\newblock ISSN 00359246.
+\newblock URL \url{http://www.jstor.org/stable/2984875}.
+
+\bibitem[Dhariwal et~al.(2020)Dhariwal, Jun, Payne, Kim, Radford, and
+  Sutskever]{dhariwal2020jukebox}
+Prafulla Dhariwal, Heewoo Jun, Christine Payne, Jong~Wook Kim, Alec Radford,
+  and Ilya Sutskever.
+\newblock Jukebox: A generative model for music, 2020.
+
+\bibitem[Donahue et~al.(2019)Donahue, McAuley, and
+  Puckette]{donahue2019wavegan}
+Chris Donahue, Julian McAuley, and Miller Puckette.
+\newblock Adversarial audio synthesis, 2019.
+
+\bibitem[Donahue et~al.(2021)Donahue, Dieleman, Bińkowski, Elsen, and
+  Simonyan]{donahue2021endtoend}
+Jeff Donahue, Sander Dieleman, Mikołaj Bińkowski, Erich Elsen, and Karen
+  Simonyan.
+\newblock End-to-end adversarial text-to-speech, 2021.
+
+\bibitem[Défossez(2021)]{defossez2021hybrid}
+Alexandre Défossez.
+\newblock Hybrid spectrogram and waveform source separation, 2021.
+
+\bibitem[Engel et~al.(2017)Engel, Resnick, Roberts, Dieleman, Eck, Simonyan,
+  and Norouzi]{nsynth2017}
+Jesse Engel, Cinjon Resnick, Adam Roberts, Sander Dieleman, Douglas Eck, Karen
+  Simonyan, and Mohammad Norouzi.
+\newblock Neural audio synthesis of musical notes with wavenet autoencoders,
+  2017.
+
+\bibitem[Engel et~al.(2019)Engel, Agrawal, Chen, Gulrajani, Donahue, and
+  Roberts]{engel2019gansynth}
+Jesse Engel, Kumar~Krishna Agrawal, Shuo Chen, Ishaan Gulrajani, Chris Donahue,
+  and Adam Roberts.
+\newblock Gansynth: Adversarial neural audio synthesis, 2019.
+
+\bibitem[Engel et~al.(2020)Engel, Hantrakul, Gu, and Roberts]{engel2020ddsp}
+Jesse Engel, Lamtharn Hantrakul, Chenjie Gu, and Adam Roberts.
+\newblock Ddsp: Differentiable digital signal processing, 2020.
+
+\bibitem[Goodfellow et~al.(2014)Goodfellow, Pouget-Abadie, Mirza, Xu,
+  Warde-Farley, Ozair, Courville, and Bengio]{goodfellow2014gan}
+Ian Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley,
+  Sherjil Ozair, Aaron Courville, and Yoshua Bengio.
+\newblock Generative adversarial nets.
+\newblock In Z.~Ghahramani, M.~Welling, C.~Cortes, N.~Lawrence, and K.~Q.
+  Weinberger, editors, \emph{Advances in Neural Information Processing
+  Systems}, volume~27. Curran Associates, Inc., 2014.
+\newblock URL
+  \url{https://proceedings.neurips.cc/paper/2014/file/5ca3e9b122f61f8f06494c97b1afccf3-Paper.pdf}.
+
+\bibitem[Google(2018)]{nsynthsuper}
+Google.
+\newblock Nsynth super, 2018.
+\newblock URL \url{https://nsynthsuper.withgoogle.com/}.
+
+\bibitem[Google(2021)]{magentastudio}
+Google.
+\newblock Magenta studio, 2021.
+\newblock URL \url{https://magenta.tensorflow.org/studio}.
+
+\bibitem[Graves(2014)]{graves2014textrnns}
+Alex Graves.
+\newblock Generating sequences with recurrent neural networks, 2014.
+
+\bibitem[Hawthorne et~al.(2019)Hawthorne, Stasyuk, Roberts, Simon, Huang,
+  Dieleman, Elsen, Engel, and Eck]{hawthorne2019maestro}
+Curtis Hawthorne, Andriy Stasyuk, Adam Roberts, Ian Simon, Cheng-Zhi~Anna
+  Huang, Sander Dieleman, Erich Elsen, Jesse Engel, and Douglas Eck.
+\newblock Enabling factorized piano music modeling and generation with the
+  maestro dataset, 2019.
+
+\bibitem[Hochreiter and Schmidhuber(1997)]{hochreiter1997lstm}
+Sepp Hochreiter and Jürgen Schmidhuber.
+\newblock Long short-term memory.
+\newblock \emph{Neural computation}, 9:\penalty0 1735--80, 12 1997.
+\newblock \doi{10.1162/neco.1997.9.8.1735}.
+
+\bibitem[Huang et~al.(2018)Huang, Vaswani, Uszkoreit, Shazeer, Hawthorne, Dai,
+  Hoffman, and Eck]{huang2018music}
+Cheng-Zhi~Anna Huang, Ashish Vaswani, Jakob Uszkoreit, Noam Shazeer, Curtis
+  Hawthorne, Andrew~M Dai, Matthew~D Hoffman, and Douglas Eck.
+\newblock Music transformer: Generating music with long-term structure.
+\newblock \emph{arXiv preprint arXiv:1809.04281}, 2018.
+
+\bibitem[Kalchbrenner and Blunsom(2013)]{kalchbrenner-blunsom-2013-recurrent}
+Nal Kalchbrenner and Phil Blunsom.
+\newblock Recurrent continuous translation models.
+\newblock In \emph{Proceedings of the 2013 Conference on Empirical Methods in
+  Natural Language Processing}, pages 1700--1709, Seattle, Washington, USA,
+  October 2013. Association for Computational Linguistics.
+\newblock URL \url{https://aclanthology.org/D13-1176}.
+
+\bibitem[Karras et~al.(2019)Karras, Laine, and Aila]{karras2019stylegan}
+Tero Karras, Samuli Laine, and Timo Aila.
+\newblock A style-based generator architecture for generative adversarial
+  networks, 2019.
+
+\bibitem[Karras et~al.(2020)Karras, Laine, Aittala, Hellsten, Lehtinen, and
+  Aila]{karras2020stylegan2}
+Tero Karras, Samuli Laine, Miika Aittala, Janne Hellsten, Jaakko Lehtinen, and
+  Timo Aila.
+\newblock Analyzing and improving the image quality of stylegan, 2020.
+
+\bibitem[Kingma and Welling(2014)]{kingma2014autoencoding}
+Diederik~P Kingma and Max Welling.
+\newblock Auto-encoding variational bayes, 2014.
+
+\bibitem[Kumar et~al.(2019)Kumar, Kumar, de~Boissiere, Gestin, Teoh, Sotelo,
+  de~Brebisson, Bengio, and Courville]{kumar2019melgan}
+Kundan Kumar, Rithesh Kumar, Thibault de~Boissiere, Lucas Gestin, Wei~Zhen
+  Teoh, Jose Sotelo, Alexandre de~Brebisson, Yoshua Bengio, and Aaron
+  Courville.
+\newblock Melgan: Generative adversarial networks for conditional waveform
+  synthesis, 2019.
+
+\bibitem[Lafferty et~al.(2001)Lafferty, McCallum, and
+  Pereira]{Lafferty2001ConditionalRF}
+John~D. Lafferty, Andrew McCallum, and Fernando Pereira.
+\newblock Conditional random fields: Probabilistic models for segmenting and
+  labeling sequence data.
+\newblock In \emph{ICML}, 2001.
+
+\bibitem[Mehri et~al.(2017)Mehri, Kumar, Gulrajani, Kumar, Jain, Sotelo,
+  Courville, and Bengio]{mehri2017samplernn}
+Soroush Mehri, Kundan Kumar, Ishaan Gulrajani, Rithesh Kumar, Shubham Jain,
+  Jose Sotelo, Aaron Courville, and Yoshua Bengio.
+\newblock Samplernn: An unconditional end-to-end neural audio generation model,
+  2017.
+
+\bibitem[Ravanelli et~al.(2018)Ravanelli, Brakel, Omologo, and
+  Bengio]{ravanelli2018gruspeech}
+Mirco Ravanelli, Philemon Brakel, Maurizio Omologo, and Yoshua Bengio.
+\newblock Light gated recurrent units for speech recognition.
+\newblock \emph{IEEE Transactions on Emerging Topics in Computational
+  Intelligence}, 2\penalty0 (2):\penalty0 92–102, Apr 2018.
+\newblock ISSN 2471-285X.
+\newblock \doi{10.1109/tetci.2017.2762739}.
+\newblock URL \url{http://dx.doi.org/10.1109/TETCI.2017.2762739}.
+
+\bibitem[Sankaran et~al.(2021)Sankaran, Nanjundan, and
+  Anand]{sankaran2021anyonegansing}
+Shreeviknesh Sankaran, Sukavanan Nanjundan, and G.~Paavai Anand.
+\newblock Anyone gan sing, 2021.
+
+\bibitem[Shannon(1949)]{shannon49}
+C.E. Shannon.
+\newblock Communication in the presence of noise.
+\newblock \emph{Proceedings of the IRE}, 37\penalty0 (1):\penalty0 10--21,
+  1949.
+\newblock \doi{10.1109/JRPROC.1949.232969}.
+
+\bibitem[Shen et~al.(2018)Shen, Pang, Weiss, Schuster, Jaitly, Yang, Chen,
+  Zhang, Wang, Skerry-Ryan, Saurous, Agiomyrgiannakis, and Wu]{shen2018natural}
+Jonathan Shen, Ruoming Pang, Ron~J. Weiss, Mike Schuster, Navdeep Jaitly,
+  Zongheng Yang, Zhifeng Chen, Yu~Zhang, Yuxuan Wang, RJ~Skerry-Ryan, Rif~A.
+  Saurous, Yannis Agiomyrgiannakis, and Yonghui Wu.
+\newblock Natural tts synthesis by conditioning wavenet on mel spectrogram
+  predictions, 2018.
+
+\bibitem[Stevens et~al.(1937)Stevens, Volkmann, and Newman]{melscale}
+S.~S. Stevens, J.~Volkmann, and E.~B. Newman.
+\newblock A scale for the measurement of the psychological magnitude pitch.
+\newblock \emph{The Journal of the Acoustical Society of America}, 8\penalty0
+  (3):\penalty0 185--190, 1937.
+\newblock \doi{10.1121/1.1915893}.
+\newblock URL \url{https://doi.org/10.1121/1.1915893}.
+
+\bibitem[Sutskever et~al.(2008)Sutskever, Hinton, and
+  Taylor]{Sutskever2008trbm}
+Ilya Sutskever, Geoffrey Hinton, and Graham Taylor.
+\newblock The recurrent temporal restricted boltzmann machine.
+\newblock In \emph{Proceedings of the 21st International Conference on Neural
+  Information Processing Systems}, NIPS'08, page 1601–1608, Red Hook, NY,
+  USA, 2008. Curran Associates Inc.
+\newblock ISBN 9781605609492.
+
+\bibitem[Sutskever et~al.(2011)Sutskever, Martens, and
+  Hinton]{hinton2011textrnn}
+Ilya Sutskever, James Martens, and Geoffrey Hinton.
+\newblock Generating text with recurrent neural networks.
+\newblock In \emph{Proceedings of the 28th International Conference on
+  International Conference on Machine Learning}, ICML'11, page 1017–1024,
+  Madison, WI, USA, 2011. Omnipress.
+\newblock ISBN 9781450306195.
+
+\bibitem[van~den Oord et~al.(2016{\natexlab{a}})van~den Oord, Dieleman, Zen,
+  Simonyan, Vinyals, Graves, Kalchbrenner, Senior, and
+  Kavukcuoglu]{oord2016wavenet}
+Aaron van~den Oord, Sander Dieleman, Heiga Zen, Karen Simonyan, Oriol Vinyals,
+  Alex Graves, Nal Kalchbrenner, Andrew Senior, and Koray Kavukcuoglu.
+\newblock Wavenet: A generative model for raw audio, 2016{\natexlab{a}}.
+
+\bibitem[van~den Oord et~al.(2016{\natexlab{b}})van~den Oord, Kalchbrenner, and
+  Kavukcuoglu]{oord2016pixelrnn}
+Aaron van~den Oord, Nal Kalchbrenner, and Koray Kavukcuoglu.
+\newblock Pixel recurrent neural networks, 2016{\natexlab{b}}.
+
+\bibitem[Veaux et~al.(2017)Veaux, Yamagishi, and MacDonald]{Veaux2017CSTRVC}
+Christophe Veaux, Junichi Yamagishi, and Kirsten MacDonald.
+\newblock Cstr vctk corpus: English multi-speaker corpus for cstr voice cloning
+  toolkit.
+\newblock 2017.
+
+\bibitem[Wang et~al.(2020)Wang, She, and Ward]{wang2020gansurvey}
+Zhengwei Wang, Qi~She, and Tomas~E. Ward.
+\newblock Generative adversarial networks in computer vision: A survey and
+  taxonomy, 2020.
+
+\bibitem[Zhu et~al.(2020)Zhu, Park, Isola, and Efros]{zhu2020cyclegan}
+Jun-Yan Zhu, Taesung Park, Phillip Isola, and Alexei~A. Efros.
+\newblock Unpaired image-to-image translation using cycle-consistent
+  adversarial networks, 2020.
+
+\end{thebibliography}

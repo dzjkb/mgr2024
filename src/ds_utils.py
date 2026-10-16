@@ -13,6 +13,8 @@ from rich.progress import track
 
 from .evaluations.clap import get_embeddings, SAMPLING_RATE
 
+import traceback
+
 
 def save_generated_audio(audio: Tensor, target_dir: str, sample_rate: int) -> None:
     path = Path(target_dir)
@@ -121,12 +123,19 @@ class _FileBatchDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Tensor:
         # (1, T) mono → (T,) for CLAP
-        return load_file(
-            str(self._paths[idx]),
-            target_length_seconds=self._target_length_seconds,
-            sr=self._sr,
-            mono=True,
-        ).squeeze(0)
+        # print(f"loading file {self._paths[idx]}")
+        try:
+            f = load_file(
+                str(self._paths[idx]),
+                target_length_seconds=self._target_length_seconds,
+                sr=self._sr,
+                mono=True,
+            ).squeeze(0)
+        except:
+            # print("oopsie")
+            traceback.print_stack()
+        # print(f"loaded file {idx} successfully")
+        return f
 
 
 def embed_directory(
@@ -149,18 +158,25 @@ def embed_directory(
         batch_size=batch_size,
         num_workers=num_workers,
         shuffle=False,
-        pin_memory=True,
+        # pin_memory=True,
     )
 
     out: Tensor | None = None
     offset = 0
+    # print("start enconding")
     for batch in track(loader, total=len(loader), description=f"embedding {path}"):
-        emb = embedding_f(batch, batch.shape[0])  # (B, D), CPU float32
-        if out is None:
-            out = torch.empty((len(files), emb.shape[1]), dtype=emb.dtype)
-        out[offset:offset + emb.shape[0]] = emb
-        offset += emb.shape[0]
-        del batch, emb
+        # print("encoding batch...")
+        try:
+            emb = embedding_f(batch, batch.shape[0])  # (B, D), CPU float32
+            if out is None:
+                out = torch.empty((len(files), emb.shape[1]), dtype=emb.dtype)
+            out[offset:offset + emb.shape[0]] = emb
+            offset += emb.shape[0]
+            del batch, emb
+        except:
+            # print("oopsie")
+            traceback.print_stack()
+            raise
 
     assert out is not None, f"no audio files found in {path}"
     return AudioTensor(data=out, source_dir=path, filenames=filenames)

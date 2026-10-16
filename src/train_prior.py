@@ -53,14 +53,14 @@ def do_train(cfg: PriorTrainingConfig) -> None:
         batch_size=cfg.batch_size,
         shuffle=True,
         num_workers=4,
-        pin_memory=True,
+        # pin_memory=True,
         collate_fn=diagnosing_collate_fn,
     )
     val_set = DataLoader(
         TensorDataset(shuffled_train_data[-split_idx:]),
         batch_size=cfg.batch_size,
         num_workers=4,
-        pin_memory=True,
+        # pin_memory=True,
         collate_fn=diagnosing_collate_fn,
     )
 

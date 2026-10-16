@@ -192,14 +192,14 @@ def do_train(cfg: TrainingConfig) -> None:
         batch_size=cfg.batch_size,
         shuffle=True,
         num_workers=4,
-        pin_memory=True,
+        # pin_memory=True,
         collate_fn=diagnosing_collate_fn,
     )
     val_set = DataLoader(
         AudioDataset(Path(cfg.val_dataset_path), **asdict(cfg.dataset.val_overrides())),
         batch_size=cfg.batch_size,
         num_workers=4,
-        pin_memory=True,
+        # pin_memory=True,
         collate_fn=diagnosing_collate_fn,
     )
 

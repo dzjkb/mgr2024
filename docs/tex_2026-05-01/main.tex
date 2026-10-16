@@ -1,0 +1,539 @@
+%
+% Niniejszy plik stanowi przykład formatowania pracy magisterskiej na
+% Wydziale MIM UW.  Szkielet użytych poleceń można wykorzystywać do
+% woli, np. formatujac wlasna prace.
+%
+% Zawartosc merytoryczna stanowi oryginalnosiagniecie
+% naukowosciowe Marcina Wolinskiego.  Wszelkie prawa zastrzeżone.
+%
+% Copyright (c) 2001 by Marcin Woliński <M.Wolinski@gust.org.pl>
+% Poprawki spowodowane zmianami przepisów - Marcin Szczuka, 1.10.2004
+% Poprawki spowodowane zmianami przepisow i ujednolicenie 
+% - Seweryn Karłowicz, 05.05.2006
+% Dodanie wielu autorów i tłumaczenia na angielski - Kuba Pochrybniak, 29.11.2016
+
+% dodaj opcję [licencjacka] dla pracy licencjackiej
+% dodaj opcję [en] dla wersji angielskiej (mogą być obie: [licencjacka,en])
+\documentclass[magisterska]{pracamgr}
+\usepackage{amsmath}
+\let\lll\undefined
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage[square]{natbib}   % round -> (Author, 2024); square -> [Author, 2024]
+\renewcommand{\cite}{\citep}
+
+\emergencystretch=3em
+
+
+% Dane magistranta:
+\autor{Jakub Pieszczek}{371330}
+
+
+% Dane magistrantów:
+%\autor{Autor Zerowy}{342007}
+%\autori{Autor Pierwszy}{342013}
+%\autorii{Drugi Autor-Z-Rzędu}{231023}
+%\autoriii{Trzeci z Autorów}{777321}
+%\autoriv{Autor nr Cztery}{432145}
+%\autorv{Autor nr Pięć}{342011}
+
+\title{Generatywne modelowanie krótkich muzycznych sampli z użyciem deep learning'u}
+
+
+\tytulang{Generative modeling of short musical samples using deep learning}
+
+%kierunek: 
+% - matematyka, informacyka, ...
+% - Mathematics, Computer Science, ...
+\kierunek{informatyka}
+
+% informatyka - nie okreslamy zakresu (opcja zakomentowana)
+% matematyka - zakres moze pozostac nieokreslony,
+% a jesli ma byc okreslony dla pracy mgr,
+% to przyjmuje jedna z wartosci:
+% {metod matematycznych w finansach}
+% {metod matematycznych w ubezpieczeniach}
+% {matematyki stosowanej}
+% {nauczania matematyki}
+% Dla pracy licencjackiej mamy natomiast
+% mozliwosc wpisania takiej wartosci zakresu:
+% {Jednoczesnych Studiow Ekonomiczno--Matematycznych}
+
+% \zakres{Tu wpisac, jesli trzeba, jedna z opcji podanych wyzej}
+
+% Praca wykonana pod kierunkiem:
+% (podać tytuł/stopień imię i nazwisko opiekuna
+% Instytut
+% ew. Wydział ew. Uczelnia (jeżeli nie MIM UW))
+\opiekun{profesor Dominik Ślęzak\\
+  Instytut Informatyki\\
+  }
+
+% miesiąc i~rok:
+\date{Grudzień 2026}
+
+%Podać dziedzinę wg klasyfikacji Socrates-Erasmus:
+\dziedzina{ 
+%11.0 Matematyka, Informatyka:\\ 
+%11.1 Matematyka\\ 
+%11.2 Statystyka\\ 
+%11.3 Informatyka\\ 
+11.4 Sztuczna inteligencja\\ 
+%11.5 Nauki aktuarialne\\
+%11.9 Inne nauki matematyczne i informatyczne
+}
+
+%Klasyfikacja tematyczna wedlug AMS (matematyka) lub ACM (informatyka)
+% \klasyfikacja{D. Software\\
+%   D.127. Blabalgorithms\\
+%   D.127.6. Numerical blabalysis}
+
+\klasyfikacja{Computing methodologies~Maximum likelihood modeling\\
+Computing methodologies~Latent variable models\\
+Computing methodologies~Neural networks\\
+Computing methodologies~Machine learning}
+
+% Słowa kluczowe:
+\keywords{VAE, variational auto-encoders, audio modeling, waveform modeling, neural synthesizer}
+
+% Tu jest dobre miejsce na Twoje własne makra i~środowiska:
+% \newtheorem{defi}{Definicja}[section]
+
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+% koniec definicji
+
+\begin{document}
+
+\maketitle
+
+%tu idzie streszczenie na strone poczatkowa
+\begin{abstract}
+    Synteza dźwięku jest kluczowym elementem produkcji muzyki, tradycjnie wykonywanym poprzez analogowe lub cyfrowe narzędzia implementujące sposoby syntezy takie jak addytywna, subtraktywna czy granularna. Brzmienie pojedyńczego dźwięku jest kształtowane w pożądany sposób za pomocą różnych parametrów, zależnych od stosowanego rodzaju syntezy. Deep Learning pozwala na alternatywny sposób syntezy dźwięku poprzez wyuczone do tego sieci neuronowe. Korzystając z odpowiedniego rodzaju generatywnych modeli, proces ten da się kontrolować za pomocą zestawu parametrów, podobnie do tradycyjnej syntezy. Jednak w przeciwieństwie do niej parametry te są abstrakcyjnymi, wysoko-poziomowymi cechami dźwięku aniżeli ciężkimi do zinterpretowania, nisko-poziomowymi własnościami algorytmów syntezy. Parametry te mogą zostać manualnie wyspecyfikowane poprzez warunkowe uczenie, co wymaga dużego nakładu pracy w oznaczaniu danych, albo wyuczone w nienadzorowany sposób z nieoznaczonych danych. W tej pracy próbuję zastosować do tego zadania Variational Auto-Encodery na trzech różnych, własnoręcznie zebranych zestawach danych - angielskich słowach, brzmieniach perkusyjnych oraz efektów specjalnych - wyciągając z nich parametry w nienadzorowany sposób. Pokazuję, że modele te są w stanie generować dźwięk w 48kHz o wysokiej jakości, oraz że modele te uczą się skompresowanej reprezentacji brzmień w której zakodowane są ich wysoko-poziomowe, intuicyjne własności. Modyfikowanie tej reprezentacji w odpowiedni sposób pozwala na kontrolowanie tych parametrów w syntezowanych dźwiękach. Dodatkowo opisuję sposób w jaki wytrenowany model mógłby zostać opakowany we wtyczkę gotową do użycia w dowolnym cyfrowym środowisku do produkcji muzycznej (DAW).
+\end{abstract}
+
+\tableofcontents
+%\listoffigures
+%\listoftables
+
+% \chapter*{Wprowadzenie}
+% \addcontentsline{toc}{chapter}{Wprowadzenie}
+
+\chapter*{Wprowadzenie}\label{r:pojecia}
+
+Synteza dźwięku jest kluczowym elementem produkcji muzyki. Poprzez opracowywanie coraz nowszych metod syntezy, rozwój elektronicznych technologii w drugiej połowie XX wieku przyczynił się do fundamentalnych zmian w tym, jak brzmiała ówczesna muzyka. Na swój sposób czerpała z tego muzyka eksperymentalna - aktywnie szukająca nowych form ekspresji i badająca możliwości artystycznego wykorzystania najnowszych technologii - jak i muzyka popularna, opierająca czasem brzmienie całego nowego gatunku na jednym konkretnym nowym instrumencie.
+
+TODO: enaktywizm
+
+Takim przełomowym instrumentem był na przykład syntezator perkusyjny Roland TR-808. Tuż po wydaniu wcale nie odniósł sukcesu - konkurencyjne maszyny wierniej oddawały prawdziwe brzmienia perkusyjne. Przez swoją niską cenę i charakterstyczne, inne brzmienie, szybko jednak zaczął rozprzestrzeniać się wśród niszowych artystów i stał się bazą do powstającego wtedy hip-hopu i tanecznej muzyki elektronicznej. Podobny los spotkał maszyny TR-909 oraz TB-303, której wydanie The Guardian okreśił jednym z [50 najważniejszych wydarzeń muzyki tanecznej](https://www.theguardian.com/music/2011/jun/15/tadao-kikumoto-roland).
+
+Nowe sposoby syntezy dźwięku mają fundamentalny wpływ na kształt nowej muzyki nie tylko poprzez swoje unikalne brzmienie. Muzykę kształtuje również sposób - interfejs - w jaki dany instrument pozwala ze sobą wchodzić w interakcję. Tworzenie muzyki jest procesem eksploracji w medium - w używanych narzędziach, instrumentach - i sposoby czy możliwości interakcji z tym medium naturalnie kształtują to, co będziemy w stanie podczas takiej eksploracji wytworzyć. (fragment o musique concrete?) Wywodząca się z Musique Concrete kompozytorka Eliane Radigue poświęciła w ten sposób 25 lat swojej kariery na eksplorację syntezatora ARP 2500, pisząc w latach 1974-1999 prawie wyłącznie kompozycje na nim się opierające. (dron bo ARP 2500? citation needed)
+
+W późniejszych latach, równolegle z coraz to nowszym elektronicznym sprzętem muzycznym, rozwijać zaczęły się software'owe narzędzia do syntezy. Interfejs osobistego komputera dostarczył jeszcze to nowszych sposobów na pracę z dźwiękiem. Syntezatory analogowe zaczęto implementować w wersjach cyfrowych, co pozwoliło na jeszcze większe możliwości kontroli parametrów tej syntezy oraz interakcji między różnymi systemami - syntezatorami, kontrolerami.
+
+\subsection{algorytmy syntezy i kontrola}
+
+Pierwsze instrumenty elektronicze opierały się na sposobie syntezy zwaną \textit{syntezą subtraktywną}. W najogólniejszym sensie polega ona na:
+1. wytworzeniu dźwięku za pomocą \textit{oscylatorów} - układów wchodzących w oscylacje harmoniczne, tworzące fale o różnych kształtach (np. sinusoidalna, kwadratowa, piłokształtna) i o określonych częstotliwościach, a następnie
+2. przetworzeniu tej fali przez \textit{filtry}, \textit{obwiednie} lub inne układy kształtujące dźwięk.
+Oscylatorów i innych modułów jest zwykle po kilka, połączonych w różne sposoby zależnie od brzmień jakie chce się uzyskać. Najczęściej instrumenty takie mają również klawiaturę na kształt fortepianowej, za pomocą której osoba grająca kontroluje wysokość i długość trwania.
+
+Oprócz długości i wysokości, istotna jest również kontrola samego brzmienia. Tradycyjnie syntezatory umożliwiają to za pomocą różnych pokręteł i przycisków, które bezpośrednio kontrolują ustalone parametry układu od syntezy. Biorąc podstawowy układ z wcześniejszego akapitu, składający się z kilku oscylatorów, filtra i obwiedni - jedno pokrętło może odpowiadać za odcięcie filtra, drugie za rezonans, a zestaw guzików w liczbie odpowiadającej oscylatorom może zmieniać kształt ich fali między trójkątną a piłokształtną. Bardzo często na takich syntezatorach występuje też zestaw pokręteł kontrolujących ostatnią obwiednię kształtującą głośność dźwięku w czasie, z klasycznymi oznaczeniami "attack", "sustain", "decay" i "release" (stąd nazwa "obwiednia ASDR").
+
+Używającj takiego interfejsu, osoba grająca na syntezatorze zmienia parametry syntezy i kształtuje brzmienie według swojej wizji. Pole do manewru przy tworzeniu takiego interfejsu jest ogromne - oprócz pokręteł czy guzików można wykorzystywać na przykład elementy czułe na nacisk, slidery, akcelerometry, czy nawet wejścia zewnętrznych sygnałów kontrolnych. Różnorodność jest ogromna, a ostateczny wygląd takiego interfejsu i to jak się z niego korzysta bezpośrednio wpływa na to jak będą na nim wyglądały performance'y i jakie brzmienia będzie można wydobyć.
+
+Software'owe narzędzia do syntezy również cieszą się ogromną różnorodnością powstających interfejsów. Cyfrowy algorytm syntezy da się kontrolować nie tylko za pomocą cyfrowych pokręteł czy guzików, ale też za pomocą dowolnego innego sygnału który przetłumaczymy na cyfrowy format. Oznacza to, że możliwe staje się na przykład wykorzystanie czujników ruchu, światła, dźwięku, czy algorytmów wyczytujących informacje z kamery. Taki sygnał następnie można w dowolny sposób podpiąć do algorytmu syntezy, tworząc brzmienie które bezpośrednio kształtują warunki w pomieszczeniu lub czyiś ruch, gesty, czy nawet mimika twarzy.
+
+Osiągnięcia z dziedziny uczenia maszynowego ostatniej dekady znalazły szerokie zastosowanie przy wielu
+problemach związanych z dźwiękiem. Zdyskretyzowane fale dźwiękowe w naturalny sposób dają się połączyć
+z uczącymi się algorytmami, a rosnąca ilość dostępnych danych z tej dziedziny pozwala wyciągać z nich
+bardzo skomplikowane wzorce statystyczne. Uczenie maszynowe jest wykorzystywane z sukcesem przy takich
+zadaniach przetwarzania sygnału jak synteza mowy \cite{shen2018natural} \cite{donahue2021endtoend},
+transkrypcja \cite{baevski2020wav2vec} czy separacja źródeł \cite{defossez2021hybrid}. W szczególnym
+przypadku sygnału dźwiękowego jakim jest muzyka, poruszane problemy to na przykład rozpoznawanie
+gatunku \cite{castellon2021codified}, cech utworu \cite{castellon2021codified} czy generowanie muzyki o
+danej charakterystyce \cite{dhariwal2020jukebox}.
+
+Modelowanie muzyki jest ciężkim problemem, ponieważ jako sygnał posiada wiele skomplikowanych
+zależności na wielu skalach czasowych. Poczynając od oscylacji pojedyńczej fali o danej częstotliwości
+lub zgodności faz różnych częstotliwości, czyli zależności na poziomie milisekund, a kończąc na spójnej
+formie utworu, który może trwać kilka minut, uchwycenie wszystkich tych własności jednocześnie jest
+nietrywialnym zadaniem. W związku z tym, badania często skupiają się na konkretnym podzbiorze tych
+aspektów, korzystając z symbolicznych reprezentacji abstrahujących niepotrzebne szczegóły. Prace
+mające na celu generować dłuższe kompozycje często korzystają na przykład z MIDI \footnote{https://en.wikipedia.org/wiki/MIDI}
+\cite{huang2018music}. Jest to format reprezentujący ciąg nut o określonej wysokości, głośności oraz
+określonym początku i końcu. Nie zawiera informacji o tym na jakim instrumencie nuty są grane ani
+żadnych szczegółów ich wykonania (na przykład sposób uderzenia w przypadku instrumentów strunowych),
+co pomaga w skupieniu się na bardziej wysokopoziomowych własnościach kompozycji.
+
+Aby modelować niskopoziomowe własności dźwięku, jak na przykład barwę, trzeba operować bezpośrednio
+na poziomie pojedyńczych próbek. Takie podejście jest o wiele bardziej wymagające obliczeniowo, gdyż
+sygnały dźwiękowe, w celu utrzymania akceptowalnej jakości, próbkowane są zwykle z częstotliwością co
+najmniej 16 kHz. Oznacza to, że kilkusekundowe nagranie może mieć już kilkadziesiąt tysięcy próbek,
+co znacznie utrudnia zadanie uchwycenie zależności na całej długości. Niemniej jednak w ostatnich
+lat, w związku z postępującymi zasobami obliczeniowymi i coraz pojemniejszymi modelami, sposób ten
+jest coraz częściej eksplorowany. Jednym z zadań w którym takie podejście odnosi sukcesy jest synteza
+mowy, gdzie modele takie jak na przykład WaveNet \cite{oord2016wavenet} generują realistycznie brzmiące
+nagrania autoregresywnie modelując sygnał próbka po próbce.
+
+\section*{Cel pracy}
+
+Celem tej pracy jest modelowanie krótkich, pojedyńczych dźwięków (tzw. \textit{sampli}, jak na przykład
+pojedyńcze uderzenie klawisza na fortepianie) w ten sposób, żeby móc generować nowe i wiarygodne sample
+przy jednoczesnym utrzymaniu wysokiej jakości dźwieku, porównywalnej z najnowszymi pracami w tym
+zakresie. Praca nie obejmuje takich aspektów muzycznych jak harmonia czy aranżacja, skupiając się głównie
+na barwie. Wykorzystane zostały trzy zestawy danych:
+\begin{itemize}
+    \setlength\itemsep{0em}
+    \item VCTK \cite{Veaux2017CSTRVC}, przeprocesowany tak
+    \item Percussive - manualnie zebrane perkusyjne brzmienia z ogólnodostępnych paczek
+    \item SFX - manualnie zebrane dźwięki z biblioteki Freesound oznaczone jako efekty specjalne
+\end{itemize}
+
+
+Generatywne modele mają szeroki potencjał jako narzędzia kreatywne w procesie tworzenia muzyki. Przykładem wdrożonego już rozwiązania tego typu jest zestaw wtyczek od Google'owego projektu Magenta, Magenta Studio \cite{magentastudio}. Jest to pięc wtyczek do Ableton'a \footnote{\url{https://www.ableton.com/}} (który jest tzw. \textit{Digital Audio Workstation}, czyli oprogramowaniem do tworzenia muzyki), które pozwalają użytkownikowi korzystać z modeli opracowanych w Magenta i aplikować je do własnych sekwencji MIDI (reprezentujących jakąś melodię lub motyw perkusyjny). Wtyczka "`Continue"', na przykład, bierze sekwencję i kontynuuje ją w realistyczny i zróżnicowany sposób, tworząc sekwencję nawet kilkukrotnie dłuższą niż  oryginalna. Innym takim narzędziem od Magenty jest NSynth Super \cite{nsynthsuper}. Jest to tak właściwie elektroniczny instrument, który pozwala na żywo interpolować barwę dźwięku między czterema wybranymi instrumentami wykorzystując do tego \textit{embeddingi} (rzutowania na przestrzeń o mniejszej wymiarowości) z modelu NSynth \cite{nsynth2017}.
+
+Sample, obok syntezatorów czy efektów, są jednym z podstawowych budulców przy produkcji muzyki elektronicznej. Po uprzednim dostosowaniu ich do swoich potrzeb za pomocą odpowiednich narzędzi, układane są z nich bardziej skomplikowane kompozycje. Selekcja tych sampli ma znaczący wpływ na późniejsze brzmienie i charakter utworu. Opracowanie modeli generujących nowatorskie i dobrze brzmiące sample może również mieć potencjalne zastosowania w tym procesie, dając producentom na przykład coś w rodzaju syntezatora do generowania sampli odpowiadających ich wymaganiom. Z myślą o takim konkretnym zastosowaniu stworzony został model nauczony na zestawie werbli.
+
+\section*{Struktura pracy}
+
+Praca jest podzielona na cztery części. W pierwszym rozdziale omówione są podstawy teoretyczne i poprzednie prace z dziedziny na których ta się opiera, czyli:
+\begin{itemize}
+    \setlength\itemsep{0em}
+    \item deep learning i modelowanie generatywne,
+    \item najważniejsze poprzednie prace w dziedzinie,
+    \item estymowanie skomplikowanych rozkładów prawdopodobieństwa za pomocą \textit{Normalizing Flows}, oraz
+    \item DDSP.
+\end{itemize}
+W drugim rozdziale opisana jest zastosowana architektura modelu oraz zestawy danych. W trzecim rozdziale przedstawione są wyniki eksperymentów, a w czwartym rozdziale są one podsumowane oraz przedyskutowane są potencjalne zastosowania i dalszy możliwy kierunek eksploracji w tym kierunku.
+
+\chapter{Podstawy teoretyczne}
+
+% dżizs deep learning no przecież wszyscy wiedzą co to
+% \begin{enumerate}
+%     \setlength\itemsep{0em}
+%     \item SIECI NEURONOWE :surprised face: ale jakoś KRÓTKO please
+%     \item sieci rekurencyjne, konwolucyjne itd
+%     \item autoenkodery
+%     \item gradient descent czy coś I guess
+%     \item tensorflow, automatic differentiation itd?
+% \end{enumerate}
+
+% W ostatnich latach nastąpił gwałtowny rozwój metod deep learningu mających na celu modelowanie różnego rodzaju sekwencji
+\section{Reprezentacja dźwięku}
+
+Dźwięk może być reprezentowany cyfrowo na wiele sposobów. Pierwszym z nich, najbardziej podstawowym, jest ciąg próbek przedstawiający zdyskretyzowaną falą dźwiękową. Ludzki słuch nie wyłapuje częstotliwości powyżej około 20 kHz, więc z twierdzenia Nyquista-Shannona \cite{shannon49} wiemy, że jesteśmy w stanie zdyskretyzować falę bez straty informacji o ile zrobimy to z wystarczająco dużą częstotliwością - co najmniej dwa razy większą od najwyższej częstotliwości którą chcemy uchwycić. Z tego powodu wszelkie oprogramowanie przetwarzające dźwięk posługuje się najczęściej częstotliwością próbkowania 48 kHz. W szczególnych przypadkach używane są też 96 kHz lub nawet 192 kHz, co redukuje ryzyko aliasingu \footnote{https://en.wikipedia.org/wiki/Aliasing}. W kontekscie modelowania, wysoka częstotliwość próbkowania oznacza jednak dłuższy ciąg danych wejściowych do modelu. Mniejsza częstotliwość wiąże się z degradacją jakości, więc w ramach kompromisu najczęściej w dziedzinie używane są częstotliwości od 16 kHz do 24 kHz. Pomijany jest w ten sposób duży, słyszalny zakres wysokich częstotliwości, jednak najważniejsze dla ucha są częstotliwości średnie (do 8 kHz), więc jest to akceptowalna strata w przypadku więszkości problemów które są poruszane.
+
+Inną często używaną reprezentacją jest spektrogram, czyli wykres zmian częstotliwości składowych sygnału w czasie. Spektrogram otrzymuje się z sygnału dźwiękowego za pomocą krótkookresowej transformaty Fourier'a (STFT). Przedstawia on dla każdego kroku (ang. \textit{frame}) w czasie rozkład natężenia częstotliwości składowych, gdzie długość jednego kroku jest zależna od parametrów transformaty. Technicznie rzecz biorąc, wartości w spektrogramie są liczbami zespolonymi zawierającymi również informację o fazie każdej składowej. Ponieważ nie przekłada się ona bezpośrednio na ludzką percepcję, najczęściej pomija się ją biorąc normę tych wartości. Słuch ludzki postrzega zmiany zarówno w częstotliwości jak i w natężeniu logarytmicznie, więc oś częstotliwości spektrogramu jest często przeskalowywana używając skali Mel \cite{melscale}. Skala ta została określona na podstawie pomiarów empirycznych i odpowiada temu jak ludzie postrzegają zmiany w częstotliwości. Wartości spektrogramu, czyli natężenie, również są często skalowane logarytmicznie, jednak nie ma tutaj powszechnej formuły.
+
+Oprócz reprezentacji kodujących bezpośrednio to, jak wygląda sygnał dźwiękowy, istnieje też wiele reprezentacji symbolicznych. Konkretna forma takiej reprezentacji jest już zależna od funkcji jaką ma pełnić i dziedziny jakiej dotyczy. Żeby zapisać na przykład w jaki sposób wymawiane są pewne wyrazy używa się międzynarodowego alfabetu fonetycznego \footnote{\url{https://en.wikipedia.org/wiki/International_Phonetic_Alphabet}}. Żeby spisać utwór muzyczny w celu późniejszego wykonania przez solistę bądź zespół, używa się zapisu nutowego. Blisko powiązany z zapisem nutowym jest wcześniej już przytoczony format MIDI, będący lepiej przystosowany do odczytu komputerowego. Zapisy symboliczne abstrahują wiele aspektów konkretnego dźwięku który mogą reprezentować. W przypadku wykonania utworu z zapisu nutowego, pominięte aspekty mające wpływ na końcowe brzmienie to między innymi:
+\begin{itemize}
+    \setlength\itemsep{0em}
+    \item interpretacja wykonawcy (szczegóły takie jak akcenty, frazowanie, tempo/zmiany w tempie, sposób wydobycia dźwięku z instrumentu),
+    \item akustyka pomieszczenia, czy
+    \item instrument na którym jest wykonywany.
+\end{itemize}
+Zaletą tego jest jednak o wiele mniejsza zawartość informacji w takim zapisie, co pozwala na jego efektywniejsze modelowanie. Przykładowo, przy generowaniu melodii nie potrzebujemy uwzględniać żadnego z powyższych, a jedynie wysokość i długość każdej nuty. Użycie w takim przypadku MIDI jest najlepszym rozwiązaniem.
+
+Często do rozwiązania jakiegoś problemu używane jest kilka reprezentacji naraz. System syntezy mowy Google'a Tacotron 2 \cite{shen2018natural} używa pośrednich reprezentacji - najpierw przekształca wejściowy tekst w spektrogram, aby potem ze spektrogramu generować dźwięk. WaveNet \cite{oord2016wavenet} używa wysokopoziomowych, wcześniej wyekstrahowanych reprezentacji - ciągu fonemów i częstotliwości bazowej - jako sygnału warunkującego do generowania mowy. Wave2Midi2Wave od Magenty \cite{hawthorne2019maestro} tworzy hierarchiczną strukturę generującą najpierw sekwencje MIDI, która jest następnie sygnałem warunkującym dla modelu opartego na WaveNet generującego wykonanie tej sekwencji na fortepianie.
+
+\section{Deep learning i modele generatywne}
+
+\subsection{Modelowanie generatywne}
+
+W klasycznym ujęciu, uczenie statystyczne polega na modelowaniu interesujących nas zmiennych przewidywanych $Y$ jako funkcji zmiennych obserwowanych $X$ (zwanych często \textit{cechami}, z angielskiego \textit{features}) - $Y = f(X)$, gdzie parametry funkcji $f$ uczy się na podstawie zestawu danych treningowych. Jeśli dziedziną zmiennych $Y$ są liczby rzeczywiste, problem ten nazywa się regresją, a jeśli jest to jakiś dyskretny zbiór - klasyfikacją. W przypadku klasyfikacji zamiast deterministycznej zależności $Y = f(X)$ częstszym wyborem jest modelowanie rozkładu warunkowego $P(Y|X)$. Takie sformułowanie ma dużo zalet - pozwala nam określić pewność klasyfikatora co do jego predykcji, wstrzymując się na przykład od decyzji jeśli pewność jest za mała lub propagując tę informację dalej w systemie. Metody do estymowania takich rozkładów można podzielić na dwa typy:
+\begin{itemize}
+    \setlength\itemsep{0em}
+    \item dyskryminatywne - bezpośrednio modelujące $P(Y|X)$, na przykład sieci neuronowe, regresja logistyczna czy CRFy (\textit{Conditional Random Fields} \cite{Lafferty2001ConditionalRF}), oraz
+    \item generatywne - modelujące łączny rozkład $P(Y, X)$, z którego następnie uzyskuje się rozkład warunkowy $P(Y|X)$, jak na przykład Naive Bayes czy GMMy (\textit{Gaussian Mixture Model}).
+\end{itemize}
+Interesującą własnością unikalną dla podejścia generatywnego jest fakt, że przy okazji modelowania zmiennych $Y$ modelujemy również sam rozkład zmiennych wejściowych $X$. Jego znajomość pozwala na generowanie nowych, syntetycznych przykładów $\langle x, y \rangle$ bądź obliczenia prawopodobieństwa konkretnego przykładu $P(X = x)$ niezależnie od $Y$. Znajduje to zastosowanie przy takich zadaniach jak na przykład (TODO generative modeling tasks).
+
+Oprócz typowego nadzorowanego pojdeścia do uczenia statystycznego (ang. \textit{supervised learning}), gdzie na wejściu dane są pary $\langle x, y \rangle$ zmiennych obserwowanych $X$ i przewidywanych $Y$, istnieje szeroka klasa metod uczenia nienadzorowanego (ang. \textit{unsupervised learning}) wymagająca na wejściu przykładów wyłącznie ze zmiennymi obserwowanymi $X$. Metody generatywne w tym przypadku mają na celu modelować rozkład tych danych - $P(X)$. Przykładowe zadania w których korzysta się z tego typu rozwiązań to (TODO unsupervised genertive modeling tasks). Dalsza część tego podrozdziału zostanie poświęcona bardziej szczegółowemu opisowi tego podejścia, - wybranych metod oraz różnych problematycznych aspektów - gdyż odpowiada ono problemowi który porusza ta praca.
+
+TODO: DENSITY ESTIMATION?
+
+\subsection{Sieci Bayesowskie}
+
+Ogólną klasą modeli probabilistycznych zaliczających się jako generatywne są sieci bayesowskie. Formalnie sieć bayesowska to skierowany graf acykliczny, w którym wierzchołki odpowiadają zmiennym losowym a krawędzie wskazują na zależności między nimi. Taki graf przedstawia faktoryzację łącznego prawdopodobieństwa wszystkich zmiennych
+\begin{equation}
+    P(X_1, \ldots, X_n) = \prod P(X_i | pa(X_i))
+\end{equation}
+gdzie $pa(X_i)$ (od \textit{parents}) to zbiór wierzchołków z których wychodzi krawędź do $X_i$. Rozkłady każdej zmiennej (tzw. rozkłady lokalne) mogą być dowolne, w szczególności nie muszą być takie same. Przykładowym modelem może być sieć przedstawiającą wpływ wybranych czynników zewnętrznych na prawdopodobieństwo choroby oraz symptomów  - patrz rysunek TODO. Ponieważ w pełni wyspecyfikowany model pozwala policzyć łączny rozkład prawdopodobieństwa, jest on przykładem modelu generatywnego. Taki model pozwala również liczyć wszelkie inne interesujące nas rozkłady, czyli rozkłady zwykłe lub warunkowe wybranych zmiennych - proces ten określa się inferencją na drzewie.
+
+W rzeczywistych modelach lokalne rozkłady mają najczęściej nieznane parametry, a celem jest dopasowanie tych parametrów do jakichś zaobserwowanych danych. Używa się do tego zwykle metod opartych na maksymalizacji wiarygodności danych (ang. \textit{maximum likelihood estimation}). Zaobserwowane dane często nie zawierają każdej zmiennej - w takim przypadku zmienne dzieli się na \textit{obserwowane} i \textit{ukryte}. Zwykłe metody maksymalizacji wiarygodności nie dadzą się w takim przypadku zastosować, ponieważ nie da się bez wszystkich zmiennych policzyć funkcji wiarygodności. Klasyczną metodą na uczenie parametrów w takim grafie jest algorytm \textit{Expectation-Maximization} \cite{dempster1977emalgorithm}, który iteracyjnie na zmianę liczy wartość oczekiwaną funkcji wiarygodności przy założeniu poprzedniego zestawu parametrów oraz parametry maksymalizujące poprzednio wyliczoną funkcje wiarygodności. Taki proces potwarza się aż zbiegnie do satysfakcjonującego wyniku - zostało udowodnione, że zbiega do lokalnego minimum.
+
+Mając w pełni wyspecyfikowaną sieć bayesowską, można jej użyć do odpowiedzi na probabilistyczne pytania na temat modelowanych zmiennych. Częstym przypadkiem jest sytuacja, w której zaobserwowany został jakiś podzbiór zmiennych. Pytanie może wtedy być, pod warunkiem zaobserwowanych wartości, o rozkład wybranego pozdbioru zmiennych. Proces liczenia takiego rozkładu przy zaobserwowanych wartościach nazywa się inferencją w danym grafie. Jest to przykład inferencji bayesowskiej - dany jest rozkład początkowy (ang. \textit{prior distribution}), który następnie aktualizuje się po obserwacji danych (ang. \textit{evidence}) żeby uzyskać nowy rozkład (ang. \textit{posterior distribution}).
+
+\subsection{Charakterystyka podejść z użyciem deep learningu}
+
+Istnieją trzy główne rodzaje deep learningowych modeli generatywnych:
+\begin{itemize}
+    \setlength\itemsep{0em}
+    \item modele autoregresywne,
+    \item GANy, oraz
+    \item VAE.
+\end{itemize}
+Rodzaje te, wraz z konkretnymi przykładami, zostaną omówione w następnych sekcjach.
+
+% Modele autoregresywne faktoryzują rozkład $P(X)$ na iloczyn rozkładów warunkowych:
+% \begin{equation}
+%     p(x) = \prod_{i=1}^n p(x_i | x_{i - 1}, \ldots, x_1)
+% \end{equation}
+% O ile taka faktoryzacja niekoniecznie odpowiada prawdziwym zależnościom w danych, pozwala często na bardzo dobrą aproksymację. GANy to nowatorska generatywna architektura opracowana w 2014 \cite{goodfellow2014gan}, w której dwie sieci są sobie przeciwstawione - jedna generuje przykłady, a druga próbuje odróżnić je od prawdziwych przykładów z danych treningowych. VAE to modyfikacja auto-enkoderów oparta na wariacyjnych metodach inferencji w sieciach bayesowskich, która powoduje, że rozkład zmiennych ukrytych (\textit{latent space}) auto-enkodera jest znany i może służyć do generacji nowych przykładów (w przeciwieństwie do tylko kompresji istniejących przykładów).
+
+Jedną z możliwych charakteryzacji modeli generatywnych jest sposób w jaki pokrywają docelowy rozkład. W sytuacji, gdzie nie są w stanie uchwycić jego pełnej zmienności, mogą zachować się w różny sposób. Wyróżnia się tutaj dwa typy modeli - \emph{mode-seeking} oraz \emph{mode-covering}. W pierwszym przypadku model próbuje dokładnie pokryć jakiś mniejszy podzbiór modelowanej przestrzeni ("`wyszukuje"' go), ignorując inne potencjalnie liczne obszary. Przykładem tego są GANy, podatne na tzw. \emph{mode collapse}, czyli ekstremalne sytuacje tego zachowania. W drugim przypadku model próbuje pokryć cały rozkład, przez co poszczególne obszary mogą być odwzorowane z małą dokładnością, jednak lepiej uchwycona jest ogólna charakterystyka wejściowego zbioru danych. Modele oparte na maksymalizowaniu funkcji wiarygodności zwykle zachowują się w ten sposób, czyli na przykład VAE lub modele autoregresywne.
+
+Inną ważną własnością modeli generatywnych jest to, czy jest się w stanie odzyskać dla danego przykładu $x$ jego dokładne prawdopodobieństwo $p(x)$. Modele \emph{implicite} - na przykład GANy czy VAE- na to nie pozwalają, dając wyłącznie możliwość ciągnięcia nowych próbek z wyestymowanego rozkładu (stąd nazwa - rozkład jest zawarty w modelu implicite). W niektórych przypadkach - jak na przykład VAE - $p(x)$ da się estymować za pomocą technik samplowania z nieznanych rozkładów. Modele które bezpośrednio pozwalają dla danego $x$ policzyć $p(x)$ nazywa się modelami \emph{explicite} - są to na przykład modele autoregresywne, lub bardziej klasyczne techniki estymowania rozkładów.
+
+Przy niektórych zastosowaniach, jak na przykład synteza mowy, ważna jest również prędkość generowania przykładów. Modele autoregresywne są ze swojej natury bardzo wolne - w przypadku dźwięku, gdzie może być kilkanście próbek na sekundę, każda z nich musi być generowana po kolei. GANy są za to przykładem architektury, w której generowanie każdej z próbek da się zrównoleglić, przez co generowanie kolejnych przykładów jest odpowiednio szybsze.
+
+\subsection{Sieci Rekurencyjne}
+
+Podstawowym narzędziem deep learningu do modelowania sekwencji są sieci rekurencyjne (ang. \textit{Recurrent Neural Network}). Jest to szeroka klasa architektur charakteryzująca się połączeniami rekurencyjnymi - idącymi z późniejszych warstw do wcześniejszych. W praktyce oznacza to, że taka sieć zachowuje pewien stan wewnętrzny (ang. \textit{hidden state}) przekazywany między obliczeniami na każdym kolejnym elemencie sekwencji, pozwalając jej na uchwycenie złożonych zależności na przestrzeni wielu kroków. Wyjściem jest przetworzona sekwencja tej samej długości oraz końcowy stan wewnętrzny - w zależności od zadania wykorzystuję się całość wyjścia lub jego część. Na ilustracji przedstawiony jest schemat najbardziej podstawowej, jednowarstwowej sieci rekurencyjnej. Architektury tego typu osiągają sukcesy przy wielu zadaniach, jak na przykład generowanie tekstu \cite{hinton2011textrnn} \cite{graves2014textrnns}, ręcznego pisma \cite{graves2014textrnns}, tłumaczenie maszynowe \cite{kalchbrenner-blunsom-2013-recurrent}, czy modelowanie danych z czujników ruchu \cite{Sutskever2008trbm}.
+
+Sieci rekurencyjne naturalnie wpasowywują w schemat autoregresywnych modeli generatywnych - na taką sieć można spojrzeć jako na rozkład warunkowy kolejnego elementu sekwencji pod warunkiem wszystkich poprzednich. Przykładem autoregresywnego modelu dźwięku wykorzystuącego sieci rekurencyjne jest SampleRNN \cite{mehri2017samplernn}, który zostanie omówiony w sekcji o powiązanych pracach.
+
+Sieci rekurencyjne w podstawowej wersji, choć teoretycznie są w stanie uchwycić dowolne zależności między elementami sekwencji, w praktyce są podatne na problemy z uczeniem się zależności w długiej skali czasowej z powodu zaniku gradientów. Jedną z popularnych architektur mającą poradzić sobie z tym problemem i osiagającą imponujące wyniki są tzw. sieci \emph{LSTM} (\textit{Long short-term memory}). na obrazku TODO przedstawiony jest schemat komórki rekurencyjnej LSTM. Pomysłem jest zaprojektowanie sieci w ten sposób, żeby mogła dokładniej regulować przepływ informacji zawartej w stanie wewnętrznym. Dokładniej rzecz biorąc, stan ukryty jest złożony z dwóch wektórow - $h_t$ (\textit{hidden state}) oraz $c_t$ (\textit{cell state}) - i trzy "`bramki"' (warstwy) określają jak ten stan zostanie użyty: \emph{input gate} ($i_t$), \emph{forget gate} ($f_t$) oraz \emph{output gate} ($o_t$). Następujące równiania określają wyjście komórki LSTM dla kroku $t$ przy danym $h_{t-1}$ i $c_{t-1}$:
+\begin{align*}
+    f_t &= \sigma(W_f x_t + U_f h_{t-1} + b_f) \\
+    i_t &= \sigma(W_i x_t + U_i h_{t-1} + b_i) \\
+    o_t &= \sigma(W_o x_t + U_o h_{t-1} + b_o) \\
+    c_t &= f_t \circ c_{t-1} + i_t \circ \tanh(W_c x_t + U_c h_{t-1} + b_c) \\
+    h_t &= o_t \circ \tanh(c_t)
+\end{align*}
+gdzie $\sigma$ to funkcja sigmoidalna, a $\circ$ to mnożenie po współrzędnych. Intuicyjnie rzecz biorąc, "`bramki"' mają następujące funkcje:
+\begin{itemize}
+    \setlength\itemsep{0em}
+    \item \textit{input} określa ile informacji z wejścia dodać do $c_t$,
+    \item \textit{forget} określa ile informacji zachować z poprzedniego $c_{t-1}$, a
+    \item \textit{output} określa co z nowopowstałego $c_t$ przekazać dalej jako $h_t$.
+\end{itemize}
+Taka struktura powoduje, że sieć jest w stanie, jeśli chce, długoterminowo przechowywać w $c_t$ potrzebne informacje. Na przestrzeni lat powstało wiele wariantów architektury LSTM, wykorzystywanych z sukcesami przy wielu problemach. Wykorzystują one na przykład dodatkowe połączenia, wykorzystując $c_t$ do obliczania $f_t$ czy $i_t$, lub zmieniają funkcje aktywacji (sigmoid/tanh) na inne. Przykładem niedawno opublikowanej, imponującej pracy wykorzystującej jako jeden z głównych komponentów LSTMy to system \emph{OpenAI Five} grający w \emph{Dota 2} \footnote{\url{https://www.dota2.com/home}} - grę typu MOBA \footnote{\url{https://en.wikipedia.org/wiki/Multiplayer_online_battle_arena}}.
+
+Inną wariacją na temat sieci rekurencyjnych, mającą na celu usprawnienie uczenia się długoterminowych zależności, jest tzw. \emph{GRU} (\textit{Gated Recurrent Unit}). Jest to architektura prostsza niz LSTMy, mająca podobny zamysł i osiągajaca często równie dobre wyniki. w W przeciwieństwie do LSTM, ma tylko jeden wektor stanu ukrytego, $h_t$, i dwie "`bramki"' - \textit{update gate} ($z_t$) i \textit{reset gate} ($r_t$). Na obrazku TODO przedstawiony jest schemat pojdeyńczej komórki. Następujące równiania określają jej działanie:
+\begin{align*}
+    z_t &= \sigma(W_z x_t + U_z h_{t-1} + b_z) \\
+    r_t &= \sigma(W_r x_t + U_r h_{t-1} + b_r) \\
+    h_t &= (1 - z_t) \circ h_{t-1} + z_t \circ \tanh(W_h x_t + U_h (r_t \circ h_{t-1}) + b_h)
+\end{align*}
+W tym przypadku \textit{update gate} określa (podobnie jak \textit{forget} i \textit{input} przy LSTMach) ile stanu wewnętrznego zachować a ile wziąć z nowo policzonego, a \textit{reset gate} decyduje ile "`zapomnieć"' z poprzedniego stanu. Podobnie jak przy LSTMach, istnieje wiele wariacji na temat GRU, modyfikujących ilość bramek, połączenia i funkcje aktywacji. Przykładem problemu, w którym GRU osiąga dobre wyniki to transkrypcja tekstu \cite{ravanelli2018gruspeech}.
+
+\subsection{GANy}
+
+Bardzo popularnym i osiągającym znakomite wyniki na przestrzeni ostatnich lat rodzajem modeli generatywnych są GANy (\textit{Generative Adversarial Networks}). Wprowadzone w 2017 roku przez Ian'a Goodfellow'a, polegają na przeciwstawieniu sobie dwóch sieci w grze o sumie stałej \footnote{\url{https://en.wikipedia.org/wiki/Zero-sum_game}} i uczeniu ich jednocześnie \cite{goodfellow2014gan}. W oryginalnej wersji przeznaczone są do uczenia nienadzorowanego, czyli modelowania samego rozkładu danych $p(x)$ bez zmiennych docelowych $Y$.
+
+Niech $p_x$ oznacza prawdziwy rozkład z którego pobrane są dane treningowe. Pierwsza z sieci - $G$, zwana generatywną (ang. \textit{generative network}) - ma za zadanie syntezować jak najbardziej wiarygodne przykłady przekształcając losowe, niskowymiarowe wektory $z$ z wybranego rozkładu $p_z$ (na przykład $k$-wymiarowego normalnego) na przykłady podobne tym z $p_x$. W przypadku obrazów, często używa się do tego transponowanych konwolucji. Druga sieć - $D$, zwana dyskryminującą (ang. \textit{discriminative network}) - ma za zadanie rozróżniać czy przykłady na wejściu zostały stworzone przez sieć generatywną czy są rzeczywistym przykładem z $p_x$. Sieć $G$ uczy się minimalizować prawdopodobieństwo wykrycia przez $D$ minimalizując $log(1 - D(G(z)))$, zaś $D$ uczy się poprawnie odróżniać przykłady maksymalizując poprzednie wyrażenie oraz $log D(x)$ (wartość $D(x)$ oznacza prawdopodobieństwo, że $x$ pochodzi z $p_x$). Razem daje to następującą funkcję straty ($G$) / zysku ($D$):
+\begin{equation}
+    V(D, G) = \mathbb{E}_{x \sim p_x}[\log D(x)] + \mathbb{E}_{z \sim p_z}[\log(1 - D(G(z)))]
+\end{equation}
+którą optymalizuje się (minimalizuje / maksymalizuje) na zmianę względem $D$ oraz $G$, używając standardowo \textit{stochastic gradient descent}.
+
+W zaledwie kilka lat po oryginalnym sformułowaniu GANy były w stanie uczynić znaczący postęp w dziedzinie generowania syntetycznych obrazów \cite{karras2019stylegan} \cite{karras2020stylegan2}, z modyfikacjami umożliwiającymi rzeczy takie jak transfer stylu \cite{abdal2019image2stylegan} czy warunkowe generowanie obrazów \cite{zhu2020cyclegan}. Ich nowatorski paradygmat generatywny wiąże się z między innymi następującymi zaletami:
+\begin{itemize}
+    \setlength\itemsep{0em}
+    \item GANy są w stanie estymować "`ostre"' rozkłady prawdopodobieństwa, w przeciwieństwie do metod takich jak VAE czy łańcuchy Markova,
+    \item $D$ i $G$ mogą być zaimplementowane przez dowolną architekturę, oraz
+    \item nie ma ograniczeń nałożonych na rozmiar ukrytej zmiennej $z$.
+\end{itemize}
+Dzięki nim, GANy są w stanie generować bardzo realistyczne obrazy, chociaż ciągle badanym problemem zostaje wcześniej omówiony \textit{mode collapse} powodujący czasem niską różnorodność generowanych przykładów \cite{wang2020gansurvey}.
+
+GANy znalazły również zastosowanie w innych dziedzinach niż \textit{Computer Vision}, w szczególności przy generowaniu dźwięku. Jedną z pierwszych prac próbujących zaaplikować GANy do syntezy dźwięku był WaveGAN \cite{donahue2019wavegan} opierający się na pomyśle, żeby spektrogramy traktować jak obrazy. GANy są sukcesem wykorzystywane są przy syntezie mowy \cite{kumar2019melgan} \cite{donahue2021endtoend} czy śpiewu \cite{sankaran2021anyonegansing}, gdzie również przejawia się ich zaleta w postaci bardziej realistycznych przykładów, potencjalnie kosztem róznorodności. Najpodobniejszym do tego, co próbuje osiągnąć ta praca (aczkolwiek nie od strony architektury), jest GANSynth \cite{engel2019gansynth}. Stworzony przez oryginalnych autorów NSynth, osiąga jeszcze lepszą jakość rekonstrukcji instrumentalnych sampli niż pierwotne rozwiązanie oparte na autoenkoderach. Podobnie jak WaveGAN, GANSynth generuje logarytmiczne spektrogramy, estymując przy tym również \textit{instantaneous frequency} \footnote{\url{https://en.wikipedia.org/wiki/Instantaneous_phase_and_frequency}} w każdym punkcie. Dodatkowo na wejściu do generatora dane są wektory kodujące wysokość oraz natężenie dźwięku, co umożliwia niezależną kontrolę tych parametrów przy generacji. 
+
+TODO: anything more?
+
+% who asked tho?
+% Do rekonstrukcji dźwięku potrzebna jest jeszcze jednak faza, więc dodatkowo estymuje \textit{instantaneous frequency} \footnote{\url{https://en.wikipedia.org/wiki/Instantaneous_phase_and_frequency}} w każdym punkcje, czyli stosunek częstotliwości dźwięku do częstotliwości klatek spektrogramu.
+
+\subsection{VAE}
+
+VAE (Variational Auto-encoder) to architektura wywodząca się z połączenia auto-enkoderów i nowatorskiej metody inferencji wariacyjnej, zaproponowana w \cite{kingma2014autoencoding} i służąca do nienadzorowanego generatywnego modelowania. \\
+
+\noindent \textbf{Wariacyjne metody inferencji} \\
+
+Niech dana będzie sieć bayesowska. $z \in Z$ to zmienne ukryte (do których standardowo można zaliczyć też parametry rozkładów $\theta$), zaś $x \in X$ to zmienne obserwowane. Celem może być
+\begin{itemize}
+    \setlength\itemsep{0em}
+    \item optymalizacja parametrów,
+    \item wyestymowanie marginalnego prawdopodobieństwa zaobserwowanych danych, lub
+    \item inferencja na zmiennych ukrytych.
+\end{itemize}
+Do każdego z nich wymagana jest znajomość rozkładu $p(z|x)$ - tzw. \textit{posterior distribution}. Często, przy bardziej skomplikowanych zależnościach w modelu, rozkład ten jest niepoliczalny. Wyprowadza się wtedy jego aproksymację - tzw. \textit{approximate posterior} oznaczany zwykle $q(z|x)$ - zakładając najczęściej, że prawidzwy \textit{posterior} można na jakiś sposób sfaktoryzować. Daje to możliwość przybliżonego obliczenia docelowych wielkości, przy czym jakość wyniku zależy od tego jak dobrze \textit{approximate posterior} przybliża rzeczywisty rozkład $p(z|x)$. Metody wykorzystujące takie aproksymacje nazywa się wariacyjnymi metodami inferencji.
+
+Mając dany \textit{approximate posterior} $q(z|x)$, da się wyprowadzić następujący wzór na marginalne prawdopodobieństwo $p(x)$ korzystając z definicji dywergencji Kullbacka-Leiblera \footnote{\url{https://en.wikipedia.org/wiki/Kullback-Leibler_divergence}} $D_{KL}(q || p)$:
+\begin{equation} \label{eq:varpx}
+    \log p(x) = D_{KL}(q(z|x) || p(z|x)) + \mathbb{E}_{q}[-\log q(z|x) + \log p(x, z)]
+\end{equation}
+Ponieważ dywergencja ta jest zawsze większa lub równa zeru, drugi człon sumy jest dolną granicą $\log p(x)$:
+\begin{equation} \label{eq:boundVerA}
+    \log p(x) \geq \mathcal{L}(q, x) = \mathbb{E}_{q}[-\log q(z|x) + \log p(x, z)]
+\end{equation}
+i można ją zapisać jako
+\begin{equation} \label{eq:boundVerB}
+    \mathcal{L}(q, x) = -D_{KL}(q(z|x) || p(z)) + \mathbb{E}_{q}[\log p(x|z)]
+\end{equation}
+Granicę $\mathcal{L}(q, x)$ nazywa się \textit{Evidence Lower Bound}, lub w skrócie ELBO. Pozwala ona na przybliżenie rzeczywistego marginalnego prawdopodobieństwa zaobserwowanych danych używając \textit{approximate posterior}, przy czym z równania \ref{eq:varpx} widać, że jakość przybliżenia jest tym lepsza, im mniejsze jest $D_{KL}(q || p)$, czyli im podobniejszy jest \textit{approximate posterior} do prawdziwego rozkładu. \\
+
+\noindent \textbf{Stochastic Gradient Variational Bayes} \\
+
+VAE opierają się na specyficznym, oryginalnym sposobie przeprowadzenia wariacyjnej inferencji. Niech dany będzie model taki jak na obrazku TODO, przedstawiający rozkład $p_{\theta}(x, z) = p_{\theta}(x | z) p_{\theta}(z)$. Załóżmy, że:
+\begin{itemize}
+    \item niepoliczalne są $p_{\theta}(x)$, \textit{posterior} $p(z | x)$ oraz jakiekolwiek jego klasyczne przybliżenia wariacyjne zakładające jakąś faktoryzację - taka sytuacja jest możliwa przy bardziej skomplikowanych rozkładach $p_{\theta}(x | z)$, modelowanych na przykład przez sieć neuronową, oraz
+    \item zbiór danych jest na tyle duży, że użycie metod opartych na samplowaniu takich jak na przykład \textit{Monte Carlo EM} jest niepraktyczne, a do pojedyńczego kroku optymalizacji najlepiej by móc użyć niewielkiej liczby przykładów, czy nawet jednego.
+\end{itemize}
+Autorzy, na wzór metod wariacyjnych, wprowadzają parametryzowany model $q_{\phi}(z | x)$ mający być przybliżeniem $p(z | x)$. W przeciwieństwie do klasycznych metod, nie zakłada on jednak żadnej faktoryzacji i nie musi mieć żadnej konkretnej formy - może to być również na przykład sieć neuronowa. Parametry $\phi$ tego modelu mają być docelowo wyuczone wraz z parametrami $\theta$ właściwego modelu.
+
+Do uczenia potrzebne jest różniczkowanie granicy $\mathcal{L}(q, x)$ względem $\phi$ i $\theta$. Typowy estymator takiej pochodnej względem rozkładu $q_{\phi}(z|x)$ - $\nabla_{\phi} \mathbb{E}_{q_{\phi}(z)}[f(z)] = \mathbb{E}_{q_{\phi}(z)}[f(z) \nabla_{q_{\phi}(z)} \log q_{\phi}(z)] \simeq \frac{1}{L} \sum_{l=1}^{L} f(z) \nabla_{q_{\phi}(z_l)} \log q_{\phi}(z_l)$, gdzie $z^{(l)} \sim q_{\phi}(z|x)$ - nie nadaje się do tego zastosownia z powodu zbyt dużej wariancji. W związku z tym autorzy wyprowadzają estymator dolnej granicy nazwany \textit{Stochastic Gradient Variational Bayes} (SGVB). Opiera się on na tym, że zmienną $\tilde{z} \sim q_{\phi}(z|x)$, przy niezbyt wymagających założenich dla rozkładu $q$, da się przedstawić jako $\tilde{z} = g_{\phi}(\epsilon, x)$, gdzie $\epsilon \sim p(\epsilon)$ i $g$ jest różniczkowalne. Estymator wartości oczekiwanej wygląda wtedy następująco:
+\begin{equation}
+    \mathbb{E}_{q_{\phi}(z|x)}[f(z)] = \mathbb{E}_{p(\epsilon)}[f(g_{\phi}(\epsilon, x))] \simeq \frac{1}{L} \sum_{l=1}^{L} f(g_{\phi}(\epsilon_l, x))
+\end{equation}
+Aplikując to do definicji z równania \ref{eq:boundVerA}, wychodzi $\tilde{\mathcal{L}}(q, x) \simeq \mathcal{L}(q, x)$:
+\begin{align*}
+    & \widetilde{\mathcal{L}}(q, x_i) = \frac{1}{L} \sum\limits_{l=1}^{L} \log p_{\theta}(x_i, z_{i,l}) - \log q_{\phi}(z_{i,l} | x_i) \\
+    & z_{i,l} = g_{\phi}(\epsilon_{i,l}, x_i) \\
+    & \epsilon_{i, l} \sim p(\epsilon)
+\end{align*}
+Alternatywnie, ponieważ dywergencję $D_{KL}(q(z|x) || p(z))$ da się często obliczyć analitycznie, można wyprowadzić estymator z równania \ref{eq:boundVerB}, dający wersję z jeszcze mniejszą wariancją:
+\begin{equation} \label{eq:vaeloss}
+    \widetilde{\mathcal{L}}(q, x_i) = -D_{KL}(q_{\phi}(z|x_i) || p_{\theta}(z)) + \frac{1}{L} \sum\limits_{l=1}^{L} \log p_{\theta}(x_i|z_{i,l})
+\end{equation}
+Mając taki estymator dla pojedyńczego przykładu $x_i$, można skonstruować estymator ELBO dla całego zbioru danych (o wielkości $N$) oparty o losowy podzbiór (ang. \textit{minibatch}) o wielkości $M$:
+\begin{equation}
+    \widetilde{\mathcal{L}}^M(q, X) = \frac{N}{M} \sum\limits_{i=1}^{M} \widetilde{\mathcal{L}}(q, x_i)
+\end{equation}
+który następnie można różniczkować i użyć razem z metodami gradientowymi jak SGD do optymalizacji $\theta$ oraz $\phi$.
+
+% TODO coś o reparametryzacji jeszcze??? że to tak właściwie pozwala różniczkować $\mathcal{L}$ wzgl $\phi$?  brzmi jak dobry materiał na appendix \\
+
+\noindent \textbf{Auto-enkodery} \\
+
+Przykładem konkretnego modelu implementującego powyższy schemat wariacyjnej inferencji jest następujący \textit{Variational Auto-encoder} (VAE), gdzie:
+\begin{itemize}
+    \item rozkład \textit{prior} na zmiennej ukrytej ($p(z)$) przyjmuje się jako $\mathcal{N}(0, \mathbb{I})$, a
+    \item zarówno $p_{\theta}(x|z)$ jak i \textit{approximate posterior} $q_{\phi}(z|x)$ reprezentuje się poprzez probabilistyczne sieci neuronowe - rozkłady normalne, których parametry są liczone przez sieci neuronowe.
+\end{itemize}
+
+Żeby wykorzystać estymator SGVB do optymalizacji $\theta$ i $\phi$, potrzebna jest reparametryzacja $z \sim q_{\phi}(z|x)$ do $z = g_{\phi}(\epsilon, x)$, gdzie $\epsilon \sim p(\epsilon)$ jest jakimś niezależnym rozkładem. Dla dowolnego rozkładu normalnego $n \sim \mathcal{N}(\mu, \sigma^2)$ taką reparametryzacją jest translacja $n = \mu + \sigma \epsilon$, gdzie $\epsilon \sim \mathcal{N}(0, 1)$.
+
+W interpretacji auto-enkoderowej, sieć reprezentująca $q_{\phi}(z|x)$ jest probabilistycznym enkoderem kompresującym przykłady do nisko-wymiarowej przestrzeni ukrytej (\textit{latent space}) $z$, a sieć $p_{\theta}(x|z)$ probabilistycznym dekoderem działającym w drugą stronę. Tak jak w zwykłych auto-enkoderach, optymalne kodowanie jest uczone z danych poprzez jednoczesną optymalizację parametrów $\phi$ i $\theta$ poprzez funkcję straty określającą jakość rekonstrukcji. Główną różnicą w VAE jest rozkład $z \sim p(z)$ (\textit{prior}) narzucony na przestrzeń ukrytą, który przekształca go w model generatywny. Można samplować z niego kodowania nowych, nie widzianych wcześniej przykładów, które następnie przekształca się dekoderem do właściwej postaci. W zwykłych auto-enkoderach nie ma żadnych ograniczeń narzuconych na \textit{latent space}, przez co nie da się ręcznie tworzyć znaczących kodowań.
+
+Estymator SGVB w wersji z równiania \ref{eq:vaeloss} w widoczny sposób odpowiada interpretacji auto-enkoderowej. Człon $\frac{1}{L} \sum_{l=1}^{L} \log p_{\theta}(x_i|z_{i,l})$ odpowiada jakości rekonstrukcji przykładu, zaś dywergencja $-D_{KL}(q_{\phi}(z|x_i) || p_{\theta}(z))$ regularyzuje probabilistyczny enkoder w ten sposób, żeby wyuczył się rozkładu zbliżonego do oczekiwanego na przestrzeni ukrytej.
+
+TODO obrazek
+
+\section{Powiązane prace}
+
+\subsection{WaveNet}
+
+Pierwszą, przełomową pracą generującą dźwięk próbka po próbce za pomocą sieci neuronowych jest powstały w laboratorium DeepMind \emph{WaveNet} \cite{oord2016wavenet}. Zainspirowany był ówczesnymi osiągnięciami w dziedzinie generowania obrazów. Opublikowany w tym samym roku PixelRNN \cite{oord2016pixelrnn} okazał się generować zadziwiająco wysokiej jakości obrazy autoregresywnie modelując ich rozkład jako ciąg prawopodobieństw warunkowych $p(x_i | x_{i-1}, \ldots, x_0)$, gdzie każdy element $x_i$ to pojedyńczy piksel. Używał do tego dwóch wielowarstwowych LSTM-ów \cite{hochreiter1997lstm}. Podobnie do zdyskretyzowanej fali dźwiękowej, modelowany w ten sposób rozkład na obrazkach jest bardzo wysoko wymiarowy (wysokość $\times$ szerokość) i posiada skomplikowane zależności na przestrzeni wszystkich wymiarów.
+
+WaveNet w podobny sposób autoregresywnie faktoryzuje dźwięk, a do wyrażenia rozkładu warunkowego $p(x_i | x_{i - 1}, \ldots, x_0)$ (gdzie $x_i$ to pojedyńcza próbka) używa odpowiednio zmodyfikowanych jednowymiarowych warstw konwolucyjnych. Pierwszą modyfikacją jest to, żeby konwolucje rzeczywiście były autoregresywne i polega na "przesunięciu" ich w ten sposób, żeby dany element sekwencji wyjściowej był liczony wyłącznie na podstawie elementów wejściowych o mniejszym indeksie. Drugą modyfikacją są "rozciągnięte" konwolucje (\textit{dilated convolutions}) pozwalające WaveNet'owi efektywnie uchwycić zależności na skali wielu tysięcy próbek. Tak jak pokazuje ilustracja TODO, polegają one na tym, że filtr danej konwolucji jest aplikowany do co $n$-tego elementu (co jest równoważne większemu filtrowi z zerami wstawionymi w odpowiednie miejsca, lecz bardziej efektywne obliczeniowo). Dla sieci złożonej z kilku takich warstw, gdzie "rozmiar rozciągnięcia" każdej kolejnej rośnie wykładniczo, obszar pokryty przez taką sieć (ang. \textit{receptive field}) również skaluje się wykładniczo z ilością warstw. Oznacza to, że taka sieć może uczyć się zależności na przestrzeni już sekund, co starczy na przykład do zadań takich jak generacja mowy.
+
+WaveNet można w prosty sposób przekształcić w model warunkowy dokładając do wejścia w odpowiednim miejscu warunkujące dane. W przypadku pojedyńczego, globalnego wektora warunkującego, autorzy dodają go przed funkcją aktywacji, przekształcając go jeszcze przez wyuczoną transformacje liniową. W przypadku ciągu lokalnych informacji warunkujących, zwiększają oni jego częstotliwość za pomocą transponowanych konwolucji do częstotliwości dźwięku a następnie konkatenują przy wejściu do modelu.
+
+Ewaluacja WaveNet'u przeprowadzona została na trzech zadaniach:
+\begin{itemize}
+    \setlength\itemsep{0em}
+    \item nienadzorowane generowanie mowy,
+    \item nadzorowana synteza tekstu, i
+    \item nienadzorowane generowanie muzyki.
+\end{itemize}
+Zestaw nagrań wykorzystany do treningu przy nienadzorowanego generowaniu mowy \cite{Veaux2017CSTRVC} zawierał 109 mówców, a WaveNet warunkowany był na ich identyfikatorach. Ten sam model był w stanie uchwycić charakterystykę wszystkich mówców naraz, co sugeruje jakiś poziom wspólnej reprezentacji między nimi. Dla nadzorowanej generacji tekstu wykorzystane zostały bazy nagrań Google'a dla północno-amerykańskiego angielskiego oraz mandaryńskiego.
+
+\begin{enumerate}
+    \setlength\itemsep{0em}
+    \item WaveNet, generowanie mowy jako pierwsze modele generujące próbka po próbce
+    \item jakieśtam transkrypcje czy inne klasyfikacyjne taski
+    \item Melnety czy inne takie na spektrogramach
+    \item te wszystkie rzeczy na wavenetach do TTSu
+\end{enumerate}
+
+\subsection{SampleRNN}
+
+\subsection{}
+
+\section{Normalizing Flows}
+
+normalizing flows coto czemu oraz w zastosowaniu:
+\begin{enumerate}
+    \setlength\itemsep{0em}
+    \item do estymowania gęstości,
+    \item do parallel wavenetów może?
+    \item lepszych VAE
+    \item i coś tam jeszcze chyba było
+\end{enumerate}
+
+\section{DDSP}
+
+no tak, czym są komponenty ddsp (opisy matematyczne?), co to jest INDUCTIVE BIAS, i omówienie ich zajebistych wyników i na koniec że połączenie z VAE to ez win
+
+\chapter{Architektura}
+
+ta
+\begin{enumerate}
+    \item no te enko-deko-dery ddspowe
+    \item liczenie stftów
+    \item framerate, upsampling do komponentów
+    \item podłączenie komponentów
+\end{enumerate}
+
+\chapter{Eksperymenty oraz ewaluacja}
+
+uhhhhhh
+
+\chapter{Podsumowanie i wnioski}
+
+ciężko
+
+% \begin{defi}\label{skupienie}
+%   Silny, zwarty i gotowy fetor bazowy nazwiemy \emph{skupieniem}.
+% \end{defi}
+
+% \begin{defi}\label{fetor}
+%   \emph{Fetorem} nazwiemy skupienie blaba spełniające następujący
+%   \emph{aksjomat reperkusatywności}:
+%   $$\forall \mathcal{X}\in Z(t)\ \exists
+%   \pi\subseteq\oint_{\Omega^2}\kappa\leftrightarrow 42$$
+% \end{defi}
+
+% \begin{figure}[tp]
+%   \centering
+%   \framebox{\vbox to 4cm{\vfil\hbox to
+%       7cm{\hfil\tiny.\hfil}\vfil}}
+%   \caption{Artystyczna wizja blaba w~obrazie węgierskiego artysty
+%     Josipa~A. Rozkoszy pt.~,,Blaba''}
+% \end{figure}
+
+% \appendix
+
+% \chapter{Przykładowe dane wejściowe algorytmu}
+
+% \begin{center}
+%   \begin{tabular}{rrr}
+%     $\alpha$ & $\beta$ & $\gamma_7$ \\
+%     901384 & 13784 & 1341\\
+%     68746546 & 13498& 09165\\
+%     918324719& 1789 & 1310 \\
+%     9089 & 91032874& 1873 \\
+%     1 & 9187 & 19032874193 \\
+%     90143 & 01938 & 0193284 \\
+%     309132 & $-1349$ & $-149089088$ \\
+%     0202122 & 1234132 & 918324098 \\
+%     11234 & $-109234$ & 1934 \\
+%   \end{tabular}
+% \end{center}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% coding: latin-2
+%%% End:
+%\listoftables
+
